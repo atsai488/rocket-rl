@@ -1,6 +1,5 @@
 # Spot-RL
-Code & Dockerfile for Spot Reinforcement Learning demo
-
+Code & Dockerfile for Spot Reinforcement Learning dem
 # Import our image from .tar
 ```bash
 docker load -i spot-rl-demo-<arch>.tar
