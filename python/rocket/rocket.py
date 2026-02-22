@@ -1,6 +1,7 @@
 from threading import Thread
 from typing import Callable
 from rocket_onnx.onnx_command_generator import JointCommand
+from rocket.rocket_state import RocketState
 import logging
 import socket
 import struct
