@@ -1,11 +1,11 @@
 from threading import Thread
 from typing import Callable
+from rocket_onnx.onnx_command_generator import JointCommand
 import logging
 import socket
 import struct
 
 class Rocket:
-
     def __init__(self, config) -> None:
         self._started_streaming = False
         self._command_stream_stopping = False
@@ -52,7 +52,7 @@ class Rocket:
     def _decode_state_packet(self, data: bytes) -> dict:
         # example: joint positions + imu as a struct of floats
         # return {"joints": [..], "imu": {...}}
-        fmt = "<6f4f"
+        fmt = "<6f9f"
         vals = struct.unpack(fmt, data)
         return {"joints": vals[:6], "imu": vals[6:]}
 
@@ -74,7 +74,7 @@ class Rocket:
         self._command_thread.start()
     
     def _run_command_stream(
-        self, command_policy: Callable[[None], JointControlStreamRequest], timing_policy: Callable[[None], None]
+        self, command_policy: Callable[[None], JointCommand], timing_policy: Callable[[None], None]
     ):
         """private function to be run in command stream thread.
 
