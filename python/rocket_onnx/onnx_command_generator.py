@@ -34,7 +34,7 @@ class StateHandler:
 
         arguments
         state -- proto msg from spot containing most recent data on the robots state"""
-        self._context.latest_state.update_from_udp(state)
+        self._context.latest_state.update_from_atmega(state)
         self._context.event.set()
         
 class RocketOnnxPositionController:
