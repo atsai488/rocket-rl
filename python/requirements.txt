@@ -5,3 +5,6 @@ pygame
 pyPS4Controller
 spatialmath-python
 onnxruntime
+smbus2
+adafruit-circuitpython-bno055
+adafruit-blinka
