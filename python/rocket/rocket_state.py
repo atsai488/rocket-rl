@@ -1,8 +1,6 @@
 import numpy as np
 import time
 from threading import Lock
-from adafruit_servokit import ServoKit
-
 
 class RocketState:
     def __init__(self):

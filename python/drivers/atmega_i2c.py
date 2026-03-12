@@ -27,7 +27,7 @@ class AtmegaI2C:
         self._thread = None
         self._stopping = False
 
-    def start(self, on_state_update: Callable[[[dict]], None]) -> None:
+    def start(self, on_state_update: Callable[[dict], None]) -> None:        
         self._stopping = False
         self._thread = Thread(
             target=self._poll_loop, args=(on_state_update,), daemon=True

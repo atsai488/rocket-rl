@@ -3,8 +3,6 @@ from typing import Callable
 from rocket_onnx.onnx_command_generator import JointCommand
 from rocket.rocket_state import RocketState
 import logging
-import socket
-import struct
 
 class Rocket:
     def __init__(self, config) -> None:
@@ -18,8 +16,6 @@ class Rocket:
         self.config = config
         if config.verbose:
             logging.basicConfig(level=logging.DEBUG)
-        self._state_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        self._state_sock.bind(("", self.config.state_port))
 
     def __del__(self):
         """clean up active streams and threads if spot goes out of scope or is deleted"""
@@ -62,7 +58,7 @@ class Rocket:
             self._state_stream_stopping = True
             self._state_thread.join()
 
-    def start_command_stream(self, command_policy, timing_policy):
+    def start_command_stream(self, command_policy, timing_policy, atmega):
         """Create command stream to send joint level commands to the robot.
 
         arguments:
@@ -70,12 +66,12 @@ class Rocket:
         timing_policy -- Callable that blocks until the next time a command should be sent
         """
         self._command_thread = Thread(
-            target=self._run_command_stream, args=(command_policy, timing_policy), daemon=True
+            target=self._run_command_stream, args=(command_policy, timing_policy, atmega), daemon=True
         )
         self._command_thread.start()
     
     def _run_command_stream(
-        self, command_policy: Callable[[None], JointCommand], timing_policy: Callable[[None], None]
+        self, command_policy: Callable[[None], JointCommand], timing_policy: Callable[[None], None], atmega
     ):
         """private function to be run in command stream thread.
 
@@ -85,35 +81,23 @@ class Rocket:
         """
         try:
             self.logger.info("Starting command stream")
-            self._udp_command_sender(command_policy, timing_policy)
+            self._i2c_command_sender(command_policy, timing_policy, atmega)
         except Exception as e:
             self.logger.error(f"Error in command stream: {e}")
         finally:
             self.logger.info("Command stream stopped")
     
-    def _udp_command_sender(self, command_policy, timing_policy):
-        """Send commands over UDP to the robot."""
-        cmd_sock = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        robot_addr = (self.config.robot_ip, self.config.command_port)
+    def _i2c_command_sender(self, command_policy, timing_policy, atmega):
+        """Send commands over i2c to the robot."""
 
         while not self._command_stream_stopping:
             if timing_policy():
                 cmd = command_policy()
-                pkt = self._encode_command(cmd)
-                cmd_sock.sendto(pkt, robot_addr)
+                atmega.send_command(cmd.joint_angles)
                 self._started_streaming = True
             else:
                 self.logger.warning("timing policy timeout")
                 return
-
-    def _encode_command(self, cmd) -> bytes:
-        """Convert command object to bytes for UDP."""
-        # Assume cmd has joint_angles (6 floats)
-        pkt = struct.pack("<6f", 
-            cmd.joint_angles[0], cmd.joint_angles[1], cmd.joint_angles[2],
-            cmd.joint_angles[3], cmd.joint_angles[4], cmd.joint_angles[5],
-        )
-        return pkt
 
     def stop_command_stream(self):
         """Stop sending joint commands to the robot."""
