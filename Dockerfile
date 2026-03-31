@@ -16,6 +16,8 @@ RUN pip3 install pygame \
                 pyPS4Controller \
                 spatialmath-python \
                 onnxruntime
+RUN pip3 install smbus2 \
+		adafruit-blinka
 
 # Copy the entrypoint script to the container
 COPY entrypoint.sh /entrypoint.sh
