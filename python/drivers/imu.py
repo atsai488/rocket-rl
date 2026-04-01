@@ -18,9 +18,7 @@ read_all() returns:
   }
 """
 
-import board
-import busio
-import adafruit_bno055
+from __future__ import annotations
 
 
 class BNO055:
@@ -28,19 +26,36 @@ class BNO055:
 
     def __init__(self):
         """Open I2C bus on Jetson pins 3 (SDA) and 5 (SCL) and init the sensor."""
-        i2c = busio.I2C(board.SCL, board.SDA)
-        self._sensor = adafruit_bno055.BNO055_I2C(i2c)
+        self._sensor = None
+        self._fallback = (0.0, 0.0, 0.0)
+
+        try:
+            # Lazy-import so environments without physical board support can still run.
+            import board
+            import busio
+            import adafruit_bno055
+
+            i2c = busio.I2C(board.SCL, board.SDA)
+            self._sensor = adafruit_bno055.BNO055_I2C(i2c)
+        except Exception as exc:
+            print(f"[WARN] IMU unavailable, using zeroed readings: {exc}")
 
     def read_accel(self) -> tuple[float, float, float]:
         """Return linear acceleration (ax, ay, az) in m/s²."""
+        if self._sensor is None:
+            return self._fallback
         return self._sensor.acceleration
 
     def read_gyro(self) -> tuple[float, float, float]:
         """Return angular velocity (gx, gy, gz) in rad/s."""
+        if self._sensor is None:
+            return self._fallback
         return self._sensor.gyro
 
     def read_mag(self) -> tuple[float, float, float]:
         """Return magnetic field (mx, my, mz) in µT."""
+        if self._sensor is None:
+            return self._fallback
         return self._sensor.magnetic
 
     def read_all(self) -> dict:
