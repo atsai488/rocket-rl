@@ -1,24 +1,28 @@
 FROM ubuntu:22.04
 
-# Install required apt packages
-RUN apt-get update && apt-get install -y \
-    git \
-    python3-pip
-
-# Clone the repositories
-COPY . /rocket
+ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR /rocket
 
-# Put spot-private-sdk wheels in spot-rl/external/spot-python-sdk/prebuilt
-# ^ This can be done with a `gitman update` or by manual intervention
+# System packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
+    python3-pip \
+    && rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install pygame \
-                pyPS4Controller \
-                spatialmath-python \
-                onnxruntime
-RUN pip3 install smbus2 \
-		adafruit-blinka
+# Python packages that rarely change
+RUN pip3 install --no-cache-dir \
+    pygame \
+    pyPS4Controller \
+    spatialmath-python \
+    onnxruntime \
+    smbus2 \
+    adafruit-blinka
 
-# Copy the entrypoint script to the container
+# Copy only the app folder last, so edits to /rocket don't rebuild earlier layers
+COPY rocket/ /rocket/
+
+# Entrypoint
 COPY entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
