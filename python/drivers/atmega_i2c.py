@@ -2,7 +2,12 @@ import struct
 import time
 from threading import Thread, Lock
 from typing import Callable
-import smbus2
+
+try:
+    import smbus2  # type: ignore[import-not-found]
+except ImportError:
+    print("Import not found")
+    smbus2 = None
 
 ATMEGA_ADDR = 0x08  # i2c address of the atmega
 REG_MOTOR_STATE = (
@@ -19,13 +24,25 @@ class AtmegaI2C:
     def __init__(
         self, bus: int = 1, addr: int = ATMEGA_ADDR, poll_interval: float = 0.01
     ):
-        self._bus = smbus2.SMBus(bus)
+        self._bus = None
         self._addr = addr
         self._poll_interval = poll_interval
         self._pending_cmd = None
         self._lock = Lock()
         self._thread = None
         self._stopping = False
+        self._fallback_state = tuple([0.0] * NUM_JOINTS)
+
+        if smbus2 is None:
+            print("[WARN] smbus2 is not installed, using simulated joint state.")
+            return
+
+        try:
+            self._bus = smbus2.SMBus(bus)
+        except FileNotFoundError as exc:
+            print(f"[WARN] Atmega I2C bus unavailable (/dev/i2c-{bus}), using simulated joint state: {exc}")
+        except OSError as exc:
+            print(f"[WARN] Failed to open Atmega I2C bus {bus}, using simulated joint state: {exc}")
 
     def start(self, on_state_update: Callable[[dict], None]) -> None:        
         self._stopping = False
@@ -45,7 +62,8 @@ class AtmegaI2C:
 
     def close(self) -> None:
         self.stop()
-        self._bus.close()
+        if self._bus is not None:
+            self._bus.close()
 
     def _poll_loop(self, on_state_update: Callable[[dict], None]) -> None:
         while not self._stopping:
@@ -60,6 +78,10 @@ class AtmegaI2C:
                 time.sleep(remaining)
 
     def _read_and_dispatch(self, on_state_update: Callable[[dict], None]) -> None:
+        if self._bus is None:
+            on_state_update({"joints": self._fallback_state})
+            return
+
         try:
             raw = self._bus.read_i2c_block_data(
                 self._addr, REG_MOTOR_STATE, STATE_BYTES
@@ -75,6 +97,9 @@ class AtmegaI2C:
             self._pending_cmd = None
 
         if cmd is None:
+            return
+
+        if self._bus is None:
             return
 
         try:
