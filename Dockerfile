@@ -18,11 +18,7 @@ RUN pip3 install --no-cache-dir \
     smbus2 \
     adafruit-blinka
 
+RUN pip3 install adafruit-circuitpython-bno055 \
+		Jetson.GPIO
 # Copy only the app folder last, so edits to /rocket don't rebuild earlier layers
-COPY rocket/ /rocket/
-
-# Entrypoint
-COPY entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
-
-ENTRYPOINT ["/entrypoint.sh"]
+COPY . /rocket/
