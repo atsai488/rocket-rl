@@ -63,4 +63,11 @@
 #define FLAG_STEPPER_ERROR    (1 << 2)
 #define FLAG_IMU_ERROR        (1 << 3)
 
+#define STEPPER_ID_RF  STEPPER_ID_1
+#define STEPPER_ID_RM  STEPPER_ID_2
+#define STEPPER_ID_RB  STEPPER_ID_3
+#define STEPPER_ID_LF  STEPPER_ID_4
+#define STEPPER_ID_LM  STEPPER_ID_5
+#define STEPPER_ID_LB  STEPPER_ID_6
+
 #endif
