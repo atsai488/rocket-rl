@@ -20,8 +20,8 @@
 #define MKS_CMD_ENABLE    0xF3
 #define MKS_CMD_SET_POS   0xFD
 #define MKS_CMD_SET_SPEED 0xF6
-#define MKS_CMD_ESTOP     0xF7
-#define MKS_CMD_READ_ENC  0x31
+#define MKS_CMD_ESTOP     0xF7 /*unconfirmed*/
+#define MKS_CMD_READ_ENC  0x30 /*unconfirmed*/
 #define MKS_CMD_SET_ZERO  0x92
 
 #define STEPPER_ID_1   0x01
