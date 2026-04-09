@@ -20,5 +20,8 @@ RUN pip3 install --no-cache-dir \
 
 RUN pip3 install adafruit-circuitpython-bno055 \
 		Jetson.GPIO
-# Copy only the app folder last, so edits to /rocket don't rebuild earlier layers
-COPY . /rocket/
+
+# Do not bake source code into the image; mount it from the host at runtime.
+RUN mkdir -p /rocket/jetson
+ENV PYTHONPATH=/rocket/jetson
+VOLUME ["/rocket/jetson"]
