@@ -1,4 +1,5 @@
 #include <avr/io.h>
+#include <stdlib.h>
 #include <string.h>
 #include "jetson_comms.h"
 #include "config.h"
@@ -77,27 +78,47 @@ void jetson_comms_send_status(const RobotStatus *s) {
 }
 
 uint8_t jetson_comms_receive(uint8_t *cmd_type, uint8_t *payload) {
-    uint8_t b, len;
+    static char buf[64];
+    static uint8_t idx = 0;
 
+    uint8_t b;
     if (!rx(&b, 1)) return 0;
-    if (b != PKT_START) return 0;
 
-    if (!rx(cmd_type, 5000)) return 0;
-    if (!rx(&len, 5000)) return 0;
-    if (len > PKT_MAX_DATA) return 0;
+    if (b == '\r') return 0;
 
-    uint8_t csum = *cmd_type ^ len;
-    for (uint8_t i = 0; i < len; i++) {
-        if (!rx(&payload[i], 5000)) return 0;
-        csum ^= payload[i];
+    if (b != '\n') {
+        if (idx < sizeof(buf) - 1)
+            buf[idx++] = (char)b;
+        else
+            idx = 0; /* overflow: discard and reset */
+        return 0;
     }
 
-    uint8_t rx_csum, end;
-    if (!rx(&rx_csum, 5000)) return 0;
-    if (!rx(&end, 5000)) return 0;
+    /* got newline: terminate and parse */
+    buf[idx] = '\0';
+    idx = 0;
 
-    if (rx_csum != csum) return 0;
-    if (end != PKT_END) return 0;
+    if (strncmp(buf, "CMD,", 4) != 0) return 0;
 
+    CmdCombined *cmd = (CmdCombined *)payload;
+    char *ptr = buf + 4;
+    char *end;
+    float vals[6];
+
+    for (uint8_t i = 0; i < 6; i++) {
+        vals[i] = (float)strtod(ptr, &end);
+        if (end == ptr) return 0; /* parse failure */
+        ptr = end;
+        if (*ptr == ',') ptr++;
+    }
+
+    cmd->servo[0]   = vals[0];
+    cmd->servo[1]   = vals[1];
+    cmd->stepper[0] = vals[2];
+    cmd->stepper[1] = vals[3];
+    cmd->stepper[2] = vals[4];
+    cmd->stepper[3] = vals[5];
+
+    *cmd_type = CMD_COMBINED;
     return 1;
 }

@@ -11,7 +11,16 @@ typedef enum {
     CMD_STOP_ALL          = 0x40,
     CMD_HOME              = 0x50,
     CMD_STATUS_REQUEST    = 0x60,
+    CMD_COMBINED          = 0x70,
 } CmdType;
+
+/* Parsed from Jetson ASCII: "CMD,s0,s1,t2,t3,t4,t5\n"
+ * servo[0..1]   = joint angles (degrees)
+ * stepper[0..3] = steps for joints 2-5; positive = forward, negative = reverse */
+typedef struct {
+    float servo[2];
+    float stepper[4];
+} CmdCombined;
 
 typedef struct {
     int32_t  step_pos[6];
