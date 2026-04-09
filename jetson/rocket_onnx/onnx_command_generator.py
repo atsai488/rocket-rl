@@ -20,22 +20,6 @@ class RocketOnnxContext:
     latest_state = RocketState()
     count = 0
 
-
-class StateHandler:
-    """Class to be used as callback for state stream to put state date
-    into the controllers context
-    """
-
-    def __init__(self, context: RocketOnnxContext) -> None:
-        self._context = context
-
-    def __call__(self, state: dict):
-        """make class a callable and handle incoming state stream when called
-
-        arguments
-        state -- proto msg from spot containing most recent data on the robots state"""
-        self._context.latest_state.update_from_atmega(state)
-        self._context.event.set()
         
 class RocketOnnxPositionController:
 
@@ -69,5 +53,5 @@ class RocketOnnxPositionController:
 
         if self.verbose:
             print("Command:", target)
-
+        self.state.latest_state.update_servo_position({"joints": target.tolist()[:2]})
         return JointCommand(joint_angles=target.tolist())

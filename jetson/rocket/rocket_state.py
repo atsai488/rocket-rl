@@ -15,12 +15,16 @@ class RocketState:
         self.quat = np.zeros(4)
 
         # Motors
-        self.motor_angle = np.zeros(6)
+        self.servo_motor_angle = np.zeros(2)
+        self.stepper_motor_angle = np.zeros(4)
         self.motor_velocity = np.zeros(4)
 
-        self._last_motor_angle = np.zeros(4)
+        self._last_motor_angle = np.zeros(6)
 
-    def update_from_atmega(self, state_dict):
+    def update_servo_position(self, state_dict):
+        self.servo_motor_angle = np.array(state_dict["joints"], dtype=float)
+    
+    def update_from_encoders(self, state_dict):
         now = time.perf_counter()
 
         with self.lock:
@@ -30,16 +34,11 @@ class RocketState:
                 dt = now - self.timestamp
 
             self.timestamp = now
-
-            # TODO these will need to be double checked when we pack the data from the stm32/atmega
-            # ---- Motors ----
-            new_angles = np.array(state_dict["joints"], dtype=float)
-            self.motor_angle = new_angles
-
+            self.stepper_motor_angle = np.array(state_dict["joints"], dtype=float)
+            
             if dt and dt > 1e-6:
-                self.motor_velocity = (new_angles[2:] - self._last_motor_angle) / dt
-
-            self._last_motor_angle = new_angles[2:].copy()
+                self.motor_velocity = (self.stepper_motor_angle - self._last_motor_angle[2:]) / dt
+            self._last_motor_angle = self.stepper_motor_angle.copy()
 
     def update_from_imu(self, imu_data: dict) -> None:
         with self.lock:
@@ -50,9 +49,8 @@ class RocketState:
 
     def to_observation(self):
         with self.lock:
-            print(self.motor_angle.shape, self.motor_velocity.shape, self.gyro.shape, self.accel.shape, self.quat.shape)
             obs = np.concatenate(
-                [self.motor_angle, self.motor_velocity, self.gyro, self.accel, self.quat]
+                [self.servo_motor_angle, self.stepper_motor_angle, self.motor_velocity, self.gyro, self.accel, self.quat]
             )
 
         return obs
