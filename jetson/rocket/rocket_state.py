@@ -50,6 +50,7 @@ class RocketState:
 
     def to_observation(self):
         with self.lock:
+            print(self.motor_angle.shape, self.motor_velocity.shape, self.gyro.shape, self.accel.shape, self.quat.shape)
             obs = np.concatenate(
                 [self.motor_angle, self.motor_velocity, self.gyro, self.accel, self.quat]
             )
