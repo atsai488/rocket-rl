@@ -12,6 +12,7 @@ class RocketState:
         self.accel = np.zeros(3)
         self.gyro = np.zeros(3)
         self.mag = np.zeros(3)
+        self.quat = np.zeros(4)
 
         # Motors
         self.motor_angle = np.zeros(6)
@@ -45,14 +46,12 @@ class RocketState:
             self.accel = np.array(imu_data["accel"])
             self.gyro = np.array(imu_data["gyro"])
             self.mag = np.array(imu_data["mag"])
+            self.quat = np.array(imu_data["quaternion"])
 
-    def to_observation(self, last_action=None):
+    def to_observation(self):
         with self.lock:
             obs = np.concatenate(
-                [self.motor_angle, self.motor_velocity, self.gyro, self.accel, self.mag]
+                [self.motor_angle, self.motor_velocity, self.gyro, self.accel, self.quat]
             )
-
-            if last_action is not None:
-                obs = np.concatenate([obs, last_action])
 
         return obs

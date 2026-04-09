@@ -52,7 +52,7 @@ class RocketOnnxPositionController:
 
     def __call__(self):
         # Get latest observation safely
-        obs = self.state.latest_state.to_observation(self.last_action)
+        obs = self.state.latest_state.to_observation()
 
         model_input = np.array([obs], dtype=np.float32)
         output = self.session.run(None, {self.input_name: model_input})[0][0]
@@ -71,20 +71,3 @@ class RocketOnnxPositionController:
             print("Command:", target)
 
         return JointCommand(joint_angles=target.tolist())
-    def build_observation(self, state):
-        joints = np.array(state["joints"][:self.N])
-        imu = np.array(state["imu"])
-
-        accel = imu[0:3]
-        gyro = imu[3:6]
-        mag = imu[6:9]
-
-        obs = np.concatenate([
-            joints,
-            gyro,
-            accel,
-            mag,
-            self.last_action
-        ])
-
-        return obs
