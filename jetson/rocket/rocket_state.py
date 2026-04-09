@@ -34,10 +34,10 @@ class RocketState:
             # TODO these will need to be double checked when we pack the data from the stm32/atmega
             # ---- Motors ----
             new_angles = np.array(state_dict["joints"], dtype=float)
-            self.motor_angle = new_angles[2:]
+            self.motor_angle = new_angles
 
             if dt and dt > 1e-6:
-                self.motor_velocity = (new_angles - self._last_motor_angle) / dt
+                self.motor_velocity = (new_angles[2:] - self._last_motor_angle) / dt
 
             self._last_motor_angle = new_angles[2:].copy()
 
