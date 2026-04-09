@@ -1,6 +1,6 @@
 import numpy as np
 import onnxruntime as ort
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 from rocket.rocket_state import RocketState
 from threading import Event
@@ -16,9 +16,9 @@ class JointCommand:
 class RocketOnnxContext:
     """data class to hold runtime data needed by the controller"""
 
-    event = Event()
-    latest_state = RocketState()
-    count = 0
+    event: Event = field(default_factory=Event)
+    latest_state: RocketState = field(default_factory=RocketState)
+    count: int = 0
 
         
 class RocketOnnxPositionController:

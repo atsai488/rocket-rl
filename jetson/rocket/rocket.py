@@ -64,7 +64,6 @@ class Rocket:
             if timing_policy():
                 cmd = command_policy()
                 atmega.send_command(cmd.joint_angles)
-                
                 self._started_streaming = True
                 print("Sending command:", cmd.joint_angles)
             else:

@@ -21,6 +21,7 @@ def _imu_loop(imu: BNO055, context: RocketOnnxContext) -> None:
         context.latest_state.update_from_imu(data)
         data = {"joints": [0.0, 0.0, 0.0, 0.0]} # TODO: Read serial from Encoders
         context.latest_state.update_from_encoders(data)
+        context.event.set()
         time.sleep(0.00833)
 
 
