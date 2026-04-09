@@ -1,5 +1,5 @@
 #/bin/bash
-sudo docker run -it \
+docker run -it \
 	--entrypoint /bin/bash \
 	--privileged \
 	--network host \
