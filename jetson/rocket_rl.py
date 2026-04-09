@@ -19,7 +19,7 @@ def _imu_loop(imu: BNO055, context: RocketOnnxContext) -> None:
     while True:
         data = imu.read_all()
         context.latest_state.update_from_imu(data)
-        data = {} # Read serial from Encoders
+        data = {"joints": [0.0, 0.0, 0.0, 0.0]} # Read serial from Encoders
         context.latest_state.update_from_encoders(data)
         time.sleep(0.00833)
 
