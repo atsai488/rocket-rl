@@ -12,3 +12,6 @@ docker run -it \
 	-v /proc//device-tree:/proc/device-tree:ro \
 	-v /sys:/sys:ro \
 	rocket
+
+cd jetson/
+python3 rocket_rl.py rocket_direct.onnx
