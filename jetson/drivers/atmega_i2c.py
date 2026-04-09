@@ -89,7 +89,8 @@ class AtmegaI2C:
             angles = struct.unpack("<6f", bytes(raw))
             on_state_update({"joints": angles})
         except OSError as e:
-            pass
+            # Keep the control loop alive even when hardware read fails.
+            on_state_update({"joints": self._fallback_state})
             # print(f"[AtmegaI2C] read error: {e}")
 
     def _flush_command(self) -> None:

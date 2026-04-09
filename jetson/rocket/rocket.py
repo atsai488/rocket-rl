@@ -95,10 +95,10 @@ class Rocket:
                 cmd = command_policy()
                 atmega.send_command(cmd.joint_angles)
                 self._started_streaming = True
-                print("Sending command", cmd.joint_angles)
+                print("Sending command:", cmd.joint_angles)
             else:
                 self.logger.warning("timing policy timeout")
-                return
+                continue
 
     def stop_command_stream(self):
         """Stop sending joint commands to the robot."""
