@@ -37,7 +37,7 @@ class RocketState:
             self.stepper_motor_angle = np.array(state_dict["joints"], dtype=float)
             
             if dt and dt > 1e-6:
-                self.motor_velocity = (self.stepper_motor_angle - self._last_motor_angle[2:]) / dt
+                self.motor_velocity = (self.stepper_motor_angle - self._last_motor_angle) / dt
             self._last_motor_angle = self.stepper_motor_angle.copy()
 
     def update_from_imu(self, imu_data: dict) -> None:
