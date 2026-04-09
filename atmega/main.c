@@ -159,9 +159,25 @@ int main(void) {
     while (1) {
         if (jetson_comms_receive(&cmd_type, cmd_payload)) {
             switch ((CmdType)cmd_type) {
-                case CMD_STEPPER_POSITIONS:  handle_stepper_positions(cmd_payload); break;
-                case CMD_SERVO_POSITIONS:    handle_servo_positions(cmd_payload);   break;
-                case CMD_STEPPER_SPEED:      handle_stepper_speed(cmd_payload);     break;
+                case CMD_COMBINED: {
+                    const CmdCombined *cmd = (const CmdCombined *)cmd_payload;
+                    if (!g_estop) {
+                        for (int i = 0; i < 4; i++) {
+                            float steps = cmd->stepper[i];
+                            uint8_t  dir    = (steps >= 0.0f) ? 1 : 0;
+                            uint32_t pulses = (uint32_t)(steps < 0.0f ? -steps : steps);
+                            stepper_move_to_pulses(STEPPER_IDS[i], dir,
+                                                   g_target_speed, g_target_accel, pulses);
+                        }
+                    }
+                    for (int i = 0; i < 2; i++) {
+                        uint16_t pulse = (uint16_t)(SERVO_PULSE_MIN
+                            + (uint16_t)((cmd->servo[i] / 180.0f)
+                                         * (SERVO_PULSE_MAX - SERVO_PULSE_MIN)));
+                        servo_set_pulse(i, pulse);
+                    }
+                    break;
+                }
                 case CMD_STOP_ALL:           handle_stop_all();                     break;
                 case CMD_HOME:               handle_home();                         break;
                 case CMD_STATUS_REQUEST:
