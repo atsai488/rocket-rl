@@ -16,9 +16,9 @@ class RocketState:
 
         # Motors
         self.motor_angle = np.zeros(6)
-        self.motor_velocity = np.zeros(6)
+        self.motor_velocity = np.zeros(4)
 
-        self._last_motor_angle = np.zeros(6)
+        self._last_motor_angle = np.zeros(4)
 
     def update_from_atmega(self, state_dict):
         now = time.perf_counter()
@@ -34,12 +34,12 @@ class RocketState:
             # TODO these will need to be double checked when we pack the data from the stm32/atmega
             # ---- Motors ----
             new_angles = np.array(state_dict["joints"], dtype=float)
-            self.motor_angle = new_angles
+            self.motor_angle = new_angles[2:]
 
             if dt and dt > 1e-6:
                 self.motor_velocity = (new_angles - self._last_motor_angle) / dt
 
-            self._last_motor_angle = new_angles.copy()
+            self._last_motor_angle = new_angles[2:].copy()
 
     def update_from_imu(self, imu_data: dict) -> None:
         with self.lock:
