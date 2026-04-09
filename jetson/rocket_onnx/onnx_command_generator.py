@@ -1,6 +1,6 @@
 import numpy as np
 import onnxruntime as ort
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import List
 from rocket.rocket_state import RocketState
 from threading import Event
@@ -16,26 +16,10 @@ class JointCommand:
 class RocketOnnxContext:
     """data class to hold runtime data needed by the controller"""
 
-    event = Event()
-    latest_state = RocketState()
-    count = 0
+    event: Event = field(default_factory=Event)
+    latest_state: RocketState = field(default_factory=RocketState)
+    count: int = 0
 
-
-class StateHandler:
-    """Class to be used as callback for state stream to put state date
-    into the controllers context
-    """
-
-    def __init__(self, context: RocketOnnxContext) -> None:
-        self._context = context
-
-    def __call__(self, state: dict):
-        """make class a callable and handle incoming state stream when called
-
-        arguments
-        state -- proto msg from spot containing most recent data on the robots state"""
-        self._context.latest_state.update_from_atmega(state)
-        self._context.event.set()
         
 class RocketOnnxPositionController:
 
@@ -52,7 +36,7 @@ class RocketOnnxPositionController:
 
     def __call__(self):
         # Get latest observation safely
-        obs = self.state.latest_state.to_observation(self.last_action)
+        obs = self.state.latest_state.to_observation()
 
         model_input = np.array([obs], dtype=np.float32)
         output = self.session.run(None, {self.input_name: model_input})[0][0]
@@ -69,22 +53,5 @@ class RocketOnnxPositionController:
 
         if self.verbose:
             print("Command:", target)
-
+        self.state.latest_state.update_servo_position({"joints": target.tolist()[:2]})
         return JointCommand(joint_angles=target.tolist())
-    def build_observation(self, state):
-        joints = np.array(state["joints"][:self.N])
-        imu = np.array(state["imu"])
-
-        accel = imu[0:3]
-        gyro = imu[3:6]
-        mag = imu[6:9]
-
-        obs = np.concatenate([
-            joints,
-            gyro,
-            accel,
-            mag,
-            self.last_action
-        ])
-
-        return obs

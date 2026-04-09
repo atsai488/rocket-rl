@@ -11,7 +11,6 @@ from drivers.imu import BNO055
 from rocket_onnx.onnx_command_generator import (
     RocketOnnxPositionController,
     RocketOnnxContext,
-    StateHandler,
 )
 from utils.event_divider import EventDivider
 
@@ -20,7 +19,10 @@ def _imu_loop(imu: BNO055, context: RocketOnnxContext) -> None:
     while True:
         data = imu.read_all()
         context.latest_state.update_from_imu(data)
-        time.sleep(0.01)
+        data = {"joints": [0.0, 0.0, 0.0, 0.0]} # TODO: Read serial from Encoders
+        context.latest_state.update_from_encoders(data)
+        context.event.set()
+        time.sleep(0.00833)
 
 
 def main():
@@ -44,7 +46,6 @@ def main():
     # config = orbit.orbit_configuration.load_configuration(conf_file)
     print(config)
 
-    state_handler = StateHandler(context)
     print(options.verbose)
 
     # 333 Hz state update / 6 => ~56 Hz control updates
@@ -59,8 +60,6 @@ def main():
 
     try:
         print("[INFO] Starting state stream...")
-        atmega.start(state_handler)
-
         imu_thread = Thread(target=lambda: _imu_loop(imu, context), daemon=True)
         imu_thread.start()
 

@@ -1,109 +1,58 @@
-import struct
-import time
-from threading import Thread, Lock
-from typing import Callable
+from threading import Lock
+
+NUM_JOINTS = 6
 
 try:
-    import smbus2  # type: ignore[import-not-found]
+    import serial 
 except ImportError:
-    print("Import not found")
-    smbus2 = None
-
-ATMEGA_ADDR = 0x08  # i2c address of the atmega
-REG_MOTOR_STATE = (
-    0x00  # starting register for motor state (6 joints * 4 bytes each = 24 bytes)
-)
-REG_JOINT_CMD = (
-    0x01  # starting register for joint command (6 joints * 4 bytes each = 24 bytes)
-)
-NUM_JOINTS = 6
-STATE_BYTES = NUM_JOINTS * 4
+    serial = None
 
 
 class AtmegaI2C:
-    def __init__(
-        self, bus: int = 1, addr: int = ATMEGA_ADDR, poll_interval: float = 0.01
-    ):
-        self._bus = None
-        self._addr = addr
-        self._poll_interval = poll_interval
-        self._pending_cmd = None
+    """UART-based ATmega command sender."""
+
+    def __init__(self, port: str = "/dev/ttyTHS1", baudrate: int = 115200, timeout: float = 0.1):
         self._lock = Lock()
-        self._thread = None
-        self._stopping = False
-        self._fallback_state = tuple([0.0] * NUM_JOINTS)
+        self._serial = None
 
-        if smbus2 is None:
-            print("[WARN] smbus2 is not installed, using simulated joint state.")
+        if serial is None:
+            print("[WARN] pyserial is not installed, UART commands will be skipped.")
             return
 
         try:
-            self._bus = smbus2.SMBus(bus)
-        except FileNotFoundError as exc:
-            print(f"[WARN] Atmega I2C bus unavailable (/dev/i2c-{bus}), using simulated joint state: {exc}")
-        except OSError as exc:
-            print(f"[WARN] Failed to open Atmega I2C bus {bus}, using simulated joint state: {exc}")
-
-    def start(self, on_state_update: Callable[[dict], None]) -> None:        
-        self._stopping = False
-        self._thread = Thread(
-            target=self._poll_loop, args=(on_state_update,), daemon=True
-        )
-        self._thread.start()
-
-    def send_command(self, angles: list[float]) -> None:
-        with self._lock:
-            self._pending_cmd = list(angles)
-
-    def stop(self) -> None:
-        self._stopping = True
-        if self._thread is not None:
-            self._thread.join()
-
-    def close(self) -> None:
-        self.stop()
-        if self._bus is not None:
-            self._bus.close()
-
-    def _poll_loop(self, on_state_update: Callable[[dict], None]) -> None:
-        while not self._stopping:
-            cycle_start = time.perf_counter()
-
-            self._read_and_dispatch(on_state_update)
-            self._flush_command()
-
-            elapsed = time.perf_counter() - cycle_start
-            remaining = self._poll_interval - elapsed
-            if remaining > 0:
-                time.sleep(remaining)
-
-    def _read_and_dispatch(self, on_state_update: Callable[[dict], None]) -> None:
-        if self._bus is None:
-            on_state_update({"joints": self._fallback_state})
-            return
-
-        try:
-            raw = self._bus.read_i2c_block_data(
-                self._addr, REG_MOTOR_STATE, STATE_BYTES
+            self._serial = serial.Serial(
+                port=port,
+                baudrate=baudrate,
+                timeout=timeout,
+                write_timeout=timeout,
             )
-            angles = struct.unpack("<6f", bytes(raw))
-            on_state_update({"joints": angles})
-        except OSError as e:
-            print(f"[AtmegaI2C] read error: {e}")
+        except serial.SerialException as exc:
+            print(f"[WARN] Failed to open UART port {port}: {exc}")
+            self._serial = None
 
-    def _flush_command(self) -> None:
+    def _format_command(self, angles) -> bytes:
+        values = list(angles)[:NUM_JOINTS]
+        if len(values) < NUM_JOINTS:
+            values.extend([0.0] * (NUM_JOINTS - len(values)))
+        # servos [0, 1] = joint position & stepper [2-5] number of steps, positive -> dir = 1, neg -> dir = 0 
+        payload = ",".join(f"{v:.6f}" for v in values)
+        return f"CMD,{payload}\n".encode("ascii")
+
+    def send_command(self, angles) -> None:
+        if self._serial is None:
+            return
+
+        message = self._format_command(angles)
         with self._lock:
-            cmd = self._pending_cmd
-            self._pending_cmd = None
-
-        if cmd is None:
-            return
-
-        if self._bus is None:
-            return
-
-        try:
-            payload = list(struct.pack("<6f", *cmd))
-            self._bus.write_i2c_block_data(self._addr, REG_JOINT_CMD, payload)
-        except OSError as e:
-            print(f"[AtmegaI2C] write error: {e}")
+            try:
+                self._serial.write(message)
+                self._serial.flush()
+            except Exception as exc:
+                print(f"[WARN] UART write failed: {exc}")
+``
+    def close(self) -> None:
+        if self._serial is not None:
+            try:
+                self._serial.close()
+            finally:
+                self._serial = None

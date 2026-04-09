@@ -20,7 +20,6 @@ class Rocket:
     def __del__(self):
         """clean up active streams and threads if spot goes out of scope or is deleted"""
         self.stop_command_stream()
-        self.stop_state_stream()
 
 
     def power_on(self):
@@ -28,35 +27,6 @@ class Rocket:
         # TODO send message to turn on the enable signal to all the motors
         pass
 
-    def start_state_stream(self, on_state_update: Callable[[dict], None]):
-        """Begin a background thread that receives UDP state packets.
-
-        `on_state_update` will be called with whatever Python object you build
-        from each packet (dict, dataclass, etc.).
-        """
-        self._state_thread = Thread(
-            target=self._udp_state_listener, args=(on_state_update,), daemon=True
-        )
-        self._state_thread.start()
-
-    def _udp_state_listener(self, on_state_update):
-        """runs in a thread; blocks in recvfrom and hands packets to user callback."""
-        while not self._state_stream_stopping:
-            data, _ = self._state_sock.recvfrom(self.config.STATE_MSG_SIZE)
-            state = self._decode_state_packet(data)
-            on_state_update(state)
-
-    def _decode_state_packet(self, data: bytes) -> dict:
-        # example: joint positions + imu as a struct of floats
-        # return {"joints": [..], "imu": {...}}
-        fmt = "<6f9f"
-        vals = struct.unpack(fmt, data)
-        return {"joints": vals[:6], "imu": vals[6:]}
-
-    def stop_state_stream(self):
-        if self._state_thread is not None:
-            self._state_stream_stopping = True
-            self._state_thread.join()
 
     def start_command_stream(self, command_policy, timing_policy, atmega):
         """Create command stream to send joint level commands to the robot.
@@ -95,9 +65,10 @@ class Rocket:
                 cmd = command_policy()
                 atmega.send_command(cmd.joint_angles)
                 self._started_streaming = True
+                print("Sending command:", cmd.joint_angles)
             else:
                 self.logger.warning("timing policy timeout")
-                return
+                continue
 
     def stop_command_stream(self):
         """Stop sending joint commands to the robot."""
