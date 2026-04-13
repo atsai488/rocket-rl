@@ -21,7 +21,7 @@ class Rocket:
         
         #self.stepper_driver = Rs485Driver()
         self.servo_driver_left = ServoController(pin=getattr(config, "servo_left_pin", 33))
-        self.servo_driver_right = ServoController(pin=getattr(config, "servo_right_pin", 32))
+        # self.servo_driver_right = ServoController(pin=getattr(config, "servo_right_pin", 32))
         
         self.logger = logging.getLogger("Rocket")
         self.config = config
