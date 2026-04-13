@@ -8,16 +8,37 @@ MAX_US: int = 2500
 MIN_ANGLE: float = 0.0
 MAX_ANGLE: float = 180.0
 DEFAULT_SERVO_PIN: int = 33
+BOARD_TO_BCM = {
+    32: 12,
+    33: 13,
+}
 
 
 class ServoController:
     def __init__(self, pin: int = DEFAULT_SERVO_PIN):
         self.pin = pin
+        self._gpio_pin = pin
         self._pwm = None
-        GPIO.setmode(GPIO.BOARD)
-        GPIO.setup(self.pin, GPIO.OUT)
 
-        self._pwm = GPIO.PWM(self.pin, PWM_FREQ)
+        current_mode = GPIO.getmode()
+        if current_mode is None:
+            GPIO.setmode(GPIO.BOARD)
+        elif current_mode != GPIO.BOARD:
+            mapped_pin = BOARD_TO_BCM.get(self.pin)
+            if current_mode == GPIO.BCM and mapped_pin is not None:
+                self._gpio_pin = mapped_pin
+            else:
+                raise RuntimeError(
+                    f"GPIO mode mismatch: current mode={current_mode}, expected BOARD"
+                )
+
+        try:
+            if GPIO.gpio_function(self._gpio_pin) != GPIO.OUT:
+                GPIO.setup(self._gpio_pin, GPIO.OUT)
+        except RuntimeError:
+            GPIO.setup(self._gpio_pin, GPIO.OUT)
+
+        self._pwm = GPIO.PWM(self._gpio_pin, PWM_FREQ)
         self._pwm.start(0.0)
 
     def angle_to_duty_cycle(self, angle: float) -> float:
@@ -33,12 +54,16 @@ class ServoController:
 
     def set_angle(self, angle: float, settle_time: float = 0.01) -> None:
         """Move servo to an absolute angle in degrees."""
+        if self._pwm is None:
+            raise RuntimeError("Servo PWM is not initialized")
         duty = self.angle_to_duty_cycle(angle)
         self._pwm.ChangeDutyCycle(duty)
         time.sleep(settle_time)
 
     def hold(self, angle: float) -> None:
         """Set angle and keep pulses active."""
+        if self._pwm is None:
+            raise RuntimeError("Servo PWM is not initialized")
         duty = self.angle_to_duty_cycle(angle)
         self._pwm.ChangeDutyCycle(duty)
 
@@ -47,7 +72,7 @@ class ServoController:
             self._pwm.ChangeDutyCycle(0.0)
             self._pwm.stop()
             self._pwm = None
-        GPIO.cleanup()
+        GPIO.cleanup(self._gpio_pin)
 
     def __enter__(self):
         return self
