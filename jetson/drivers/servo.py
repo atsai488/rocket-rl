@@ -14,7 +14,10 @@ class ServoController:
     def __init__(self, pin: int = DEFAULT_SERVO_PIN):
         self.pin = pin
         self._pwm = None
-        GPIO.setup(self.pin, GPIO.OUT)
+        if (pin == 32):
+            GPIO.setup("GPIO_PE6", GPIO.OUT)
+        elif (pin == 33):
+            GPIO.setup("GPIO_PE7", GPIO.OUT)
 
         self._pwm = GPIO.PWM(self.pin, PWM_FREQ)
         self._pwm.start(0.0)
