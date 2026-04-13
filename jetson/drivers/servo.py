@@ -23,20 +23,27 @@ class ServoController:
         current_mode = GPIO.getmode()
         if current_mode is None:
             GPIO.setmode(GPIO.BOARD)
-        elif current_mode != GPIO.BOARD:
-            mapped_pin = BOARD_TO_BCM.get(self.pin)
-            if current_mode == GPIO.BCM and mapped_pin is not None:
-                self._gpio_pin = mapped_pin
-            else:
-                raise RuntimeError(
-                    f"GPIO mode mismatch: current mode={current_mode}, expected BOARD"
-                )
 
-        try:
-            if GPIO.gpio_function(self._gpio_pin) != GPIO.OUT:
-                GPIO.setup(self._gpio_pin, GPIO.OUT)
-        except RuntimeError:
-            GPIO.setup(self._gpio_pin, GPIO.OUT)
+        candidates = [self.pin]
+        mapped_pin = BOARD_TO_BCM.get(self.pin)
+        if mapped_pin is not None and mapped_pin not in candidates:
+            candidates.append(mapped_pin)
+
+        setup_error = None
+        for candidate in candidates:
+            try:
+                if GPIO.gpio_function(candidate) != GPIO.OUT:
+                    GPIO.setup(candidate, GPIO.OUT)
+                self._gpio_pin = candidate
+                setup_error = None
+                break
+            except Exception as exc:
+                setup_error = exc
+
+        if setup_error is not None:
+            raise RuntimeError(
+                f"Failed to setup servo pin {self.pin} in mode {current_mode}: {setup_error}"
+            )
 
         self._pwm = GPIO.PWM(self._gpio_pin, PWM_FREQ)
         self._pwm.start(0.0)
