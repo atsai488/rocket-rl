@@ -14,7 +14,6 @@ class ServoController:
     def __init__(self, pin: int = DEFAULT_SERVO_PIN):
         self.pin = pin
         self._pwm = None
-        GPIO.setmode(GPIO.BOARD)
         GPIO.setup(self.pin, GPIO.OUT)
 
         self._pwm = GPIO.PWM(self.pin, PWM_FREQ)
