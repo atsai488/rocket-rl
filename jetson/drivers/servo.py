@@ -8,44 +8,16 @@ MAX_US: int = 2500
 MIN_ANGLE: float = 0.0
 MAX_ANGLE: float = 180.0
 DEFAULT_SERVO_PIN: int = 33
-BOARD_TO_BCM = {
-    32: 12,
-    33: 13,
-}
 
 
 class ServoController:
     def __init__(self, pin: int = DEFAULT_SERVO_PIN):
         self.pin = pin
-        self._gpio_pin = pin
         self._pwm = None
+        GPIO.setmode(GPIO.BOARD)
+        GPIO.setup(self.pin, GPIO.OUT)
 
-        current_mode = GPIO.getmode()
-        if current_mode is None:
-            GPIO.setmode(GPIO.BOARD)
-
-        candidates = [self.pin]
-        mapped_pin = BOARD_TO_BCM.get(self.pin)
-        if mapped_pin is not None and mapped_pin not in candidates:
-            candidates.append(mapped_pin)
-
-        setup_error = None
-        for candidate in candidates:
-            try:
-                if GPIO.gpio_function(candidate) != GPIO.OUT:
-                    GPIO.setup(candidate, GPIO.OUT)
-                self._gpio_pin = candidate
-                setup_error = None
-                break
-            except Exception as exc:
-                setup_error = exc
-
-        if setup_error is not None:
-            raise RuntimeError(
-                f"Failed to setup servo pin {self.pin} in mode {current_mode}: {setup_error}"
-            )
-
-        self._pwm = GPIO.PWM(self._gpio_pin, PWM_FREQ)
+        self._pwm = GPIO.PWM(self.pin, PWM_FREQ)
         self._pwm.start(0.0)
 
     def angle_to_duty_cycle(self, angle: float) -> float:
@@ -61,16 +33,12 @@ class ServoController:
 
     def set_angle(self, angle: float, settle_time: float = 0.01) -> None:
         """Move servo to an absolute angle in degrees."""
-        if self._pwm is None:
-            raise RuntimeError("Servo PWM is not initialized")
         duty = self.angle_to_duty_cycle(angle)
         self._pwm.ChangeDutyCycle(duty)
         time.sleep(settle_time)
 
     def hold(self, angle: float) -> None:
         """Set angle and keep pulses active."""
-        if self._pwm is None:
-            raise RuntimeError("Servo PWM is not initialized")
         duty = self.angle_to_duty_cycle(angle)
         self._pwm.ChangeDutyCycle(duty)
 
@@ -79,7 +47,7 @@ class ServoController:
             self._pwm.ChangeDutyCycle(0.0)
             self._pwm.stop()
             self._pwm = None
-        GPIO.cleanup(self._gpio_pin)
+        GPIO.cleanup()
 
     def __enter__(self):
         return self

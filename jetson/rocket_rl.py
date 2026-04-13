@@ -27,8 +27,8 @@ def main():
         servo_right_pin = 33
 
     config = Config()
-    imu = BNO055()
     rocket = Rocket(config)
+    imu = BNO055()
     atmega = AtmegaI2C()
     context = RocketOnnxContext()
     # config = orbit.orbit_configuration.load_configuration(conf_file)
