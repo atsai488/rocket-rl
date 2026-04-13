@@ -99,6 +99,7 @@ class Rocket:
                     continue
 
                 scaled_joint_angles = [
+                    mid + angle * scale
                     for mid, angle, scale in zip(JOINT_POS_MID, joint_angles, JOINT_SCALE)
                 ]
 
