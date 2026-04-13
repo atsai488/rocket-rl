@@ -11,6 +11,7 @@ TIMEOUT = 0.2
 ENDIAN = "<"               # "<" little-endian, ">" big-endian
 COUNTS_PER_REV = 16384
 RADIANS_PER_COUNT = 2 * math.pi / COUNTS_PER_REV
+GEAR_RATIO = 5
 
 class Rs485Driver:
     def __init__(
@@ -106,7 +107,7 @@ class Rs485Driver:
             carry, value = struct.unpack(f"{ENDIAN}iH", data)
             position_counts = carry * COUNTS_PER_REV + value
             
-            radians = position_counts * RADIANS_PER_COUNT
+            radians = position_counts * RADIANS_PER_COUNT / GEAR_RATIO
             self._last_positions[addr] = radians
             return radians
         except Exception as exc:
@@ -232,7 +233,7 @@ class Rs485Driver:
 
             current_rad = self._last_positions.get(addr, 0.0)
             delta_rad = target_rad - current_rad
-            pulses = int(round((abs(delta_rad) / (2 * math.pi)) * COUNTS_PER_REV))
+            pulses = int(round((abs(delta_rad) / (2 * math.pi)) * COUNTS_PER_REV) * GEAR_RATIO)
             direction = 0 if delta_rad >= 0 else 1
 
             status = self.move_position(

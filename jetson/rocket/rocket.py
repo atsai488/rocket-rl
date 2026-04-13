@@ -19,7 +19,7 @@ class Rocket:
         self._command_thread = None
         self._state_thread = None
         
-        #self.stepper_driver = Rs485Driver()
+        self.stepper_driver = Rs485Driver()
         self.servo_driver_left = ServoController(pin=33)
         self.servo_driver_right = ServoController(pin=32)
         
@@ -51,8 +51,8 @@ class Rocket:
         while not self._state_stream_stopping:
             data = imu.read_all()
             context.latest_state.update_from_imu(data)
-            #data = self.stepper_driver.read_all_joints()
-            #context.latest_state.update_from_encoders(data)
+            data = self.stepper_driver.read_all_joints()
+            context.latest_state.update_from_encoders(data)
             context.event.set()
             time.sleep(0.00833)
         
@@ -87,8 +87,6 @@ class Rocket:
             self.logger.info("Command stream stopped")
     
     
-    # TODO @Austin:
-    # We may need to scale the action by 5 because of the 5-1 gear ratio that was not modeled in simulation
     def _command_snder(self, command_policy, timing_policy, atmega):
         """Send commands over i2c to the robot."""
 
@@ -101,13 +99,12 @@ class Rocket:
                     continue
 
                 scaled_joint_angles = [
-                    mid + angle * scale
                     for mid, angle, scale in zip(JOINT_POS_MID, joint_angles, JOINT_SCALE)
                 ]
 
-                #self.stepper_driver.send_joint_position(
-                #    {addr: scaled_joint_angles[addr + 1] for addr in range(1, 5)}
-                #)
+                self.stepper_driver.send_joint_position(
+                   {addr: scaled_joint_angles[addr + 1] for addr in range(1, 5)}
+                )
                 self.servo_driver_right.hold(scaled_joint_angles[0])
                 self.servo_driver_left.hold(scaled_joint_angles[1])
                 self._started_streaming = True
