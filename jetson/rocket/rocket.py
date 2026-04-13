@@ -19,7 +19,7 @@ class Rocket:
         self._command_thread = None
         self._state_thread = None
         
-        self.stepper_driver = Rs485Driver()
+        #self.stepper_driver = Rs485Driver()
         self.servo_driver_left = ServoController(pin=getattr(config, "servo_left_pin", 33))
         self.servo_driver_right = ServoController(pin=getattr(config, "servo_right_pin", 32))
         
@@ -51,7 +51,7 @@ class Rocket:
         while not self._state_stream_stopping:
             data = imu.read_all()
             context.latest_state.update_from_imu(data)
-            data = self.stepper_driver.read_all_joints()
+            #data = self.stepper_driver.read_all_joints()
             context.latest_state.update_from_encoders(data)
             context.event.set()
             time.sleep(0.00833)
@@ -105,9 +105,9 @@ class Rocket:
                     for mid, angle, scale in zip(JOINT_POS_MID, joint_angles, JOINT_SCALE)
                 ]
 
-                self.stepper_driver.send_joint_position(
-                    {addr: scaled_joint_angles[addr + 1] for addr in range(1, 5)}
-                )
+                #self.stepper_driver.send_joint_position(
+                #    {addr: scaled_joint_angles[addr + 1] for addr in range(1, 5)}
+                #)
                 self.servo_driver_right.hold(scaled_joint_angles[0])
                 self.servo_driver_left.hold(scaled_joint_angles[1])
                 self._started_streaming = True
