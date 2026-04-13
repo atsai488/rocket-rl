@@ -1,9 +1,6 @@
 import argparse
 import sys
-import time
 from pathlib import Path
-from threading import Event
-from threading import Thread
 
 from rocket.rocket import Rocket
 from drivers.atmega_i2c import AtmegaI2C
@@ -13,17 +10,6 @@ from rocket_onnx.onnx_command_generator import (
     RocketOnnxContext,
 )
 from utils.event_divider import EventDivider
-
-
-def _imu_loop(imu: BNO055, context: RocketOnnxContext) -> None:
-    while True:
-        data = imu.read_all()
-        context.latest_state.update_from_imu(data)
-        data = {"joints": [0.0, 0.0, 0.0, 0.0]} # TODO: Read serial from Encoders
-        context.latest_state.update_from_encoders(data)
-        context.event.set()
-        time.sleep(0.00833)
-
 
 def main():
 
@@ -37,6 +23,8 @@ def main():
         num_joints = 6
         default_joints = [0.0] * 6
         verbose = options.verbose
+        servo_left_pin = 7
+        servo_right_pin = 8
 
     config = Config()
     rocket = Rocket(config)
@@ -60,9 +48,8 @@ def main():
 
     try:
         print("[INFO] Starting state stream...")
-        imu_thread = Thread(target=lambda: _imu_loop(imu, context), daemon=True)
-        imu_thread.start()
-
+        rocket.start_state_loop(imu, context=context)
+        
         input("Press ENTER to start command stream...")
 
         print("[INFO] Starting command stream...")

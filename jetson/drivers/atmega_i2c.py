@@ -49,7 +49,7 @@ class AtmegaI2C:
                 self._serial.flush()
             except Exception as exc:
                 print(f"[WARN] UART write failed: {exc}")
-``
+
     def close(self) -> None:
         if self._serial is not None:
             try:
