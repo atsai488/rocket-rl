@@ -52,7 +52,7 @@ class Rocket:
             data = imu.read_all()
             context.latest_state.update_from_imu(data)
             #data = self.stepper_driver.read_all_joints()
-            context.latest_state.update_from_encoders(data)
+            #context.latest_state.update_from_encoders(data)
             context.event.set()
             time.sleep(0.00833)
         
