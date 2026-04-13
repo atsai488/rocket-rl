@@ -34,11 +34,11 @@ class BNO055:
         self._fallback: Vector3 = (0.0, 0.0, 0.0)
 
         try:
-            import board
+            import board as cp_board
             import busio
             import adafruit_bno055
 
-            i2c = busio.I2C(board.SCL, board.SDA)
+            i2c = busio.I2C(cp_board.SCL, cp_board.SDA)
             self._sensor = adafruit_bno055.BNO055_I2C(i2c)
         except Exception as exc:
             print(f"[WARN] IMU unavailable, using zeroed readings: {exc}")
