@@ -14,12 +14,12 @@ class ServoController:
     def __init__(self, pin: int = DEFAULT_SERVO_PIN):
         self.pin = pin
         self._pwm = None
-        if (pin == 32):
-            GPIO.setup("GPIO_PE6", GPIO.OUT)
-        elif (pin == 33):
-            GPIO.setup("GPIO_PE7", GPIO.OUT)
+        soc_name = "GPIO_PE6"
+        if (pin == 33):
+            soc_name = "GPIO_PE7"
 
-        self._pwm = GPIO.PWM(self.pin, PWM_FREQ)
+        GPIO.setup(soc_name, GPIO.OUT)
+        self._pwm = GPIO.PWM(soc_name, PWM_FREQ)
         self._pwm.start(0.0)
 
     def angle_to_duty_cycle(self, angle: float) -> float:
