@@ -23,8 +23,6 @@ def main():
         num_joints = 6
         default_joints = [0.0] * 6
         verbose = options.verbose
-        servo_left_pin = 32
-        servo_right_pin = 33
 
     config = Config()
     imu = BNO055()
@@ -32,9 +30,6 @@ def main():
     atmega = AtmegaI2C()
     context = RocketOnnxContext()
     # config = orbit.orbit_configuration.load_configuration(conf_file)
-    print(config)
-
-    print(options.verbose)
 
     # 333 Hz state update / 6 => ~56 Hz control updates
     timing_policy = EventDivider(context.event, 6)
