@@ -15,7 +15,7 @@ TURNAROUND_DELAY_S = float(os.getenv("RS485_TURNAROUND_DELAY_S", "0.003"))
 INTER_READ_DELAY_S = float(os.getenv("RS485_INTER_READ_DELAY_S", "0.002"))
 PARITY = os.getenv("RS485_PARITY", "N").upper()
 STOPBITS = float(os.getenv("RS485_STOPBITS", "1"))
-ENDIAN = "<"               # "<" little-endian, ">" big-endian
+ENDIAN = os.getenv("RS485_ENDIAN", ">")
 COUNTS_PER_REV = 16384
 RADIANS_PER_COUNT = 2 * math.pi / COUNTS_PER_REV
 GEAR_RATIO = 5
@@ -66,25 +66,17 @@ class Rs485Driver:
             self.serial.close()
 
     @staticmethod
-    def crc16_modbus(data: bytes) -> int:
+    def checksum(frame_wo_checksum: bytes) -> int:
         """
-        Standard Modbus CRC-16.
-        Returns integer CRC; append as low byte then high byte.
+        MKS checksum used by firmware:
+        sum of all frame bytes (header+addr+cmd+data...), low 8 bits.
         """
-        crc = 0xFFFF
-        for b in data:
-            crc ^= b
-            for _ in range(8):
-                if crc & 0x0001:
-                    crc = (crc >> 1) ^ 0xA001
-                else:
-                    crc >>= 1
-        return crc & 0xFFFF
+        return sum(frame_wo_checksum) & 0xFF
 
     @classmethod
     def append_crc(cls, frame: bytes) -> bytes:
-        crc = cls.crc16_modbus(frame)
-        return frame + struct.pack("<H", crc)
+        crc = cls.checksum(frame)
+        return frame + bytes([crc])
 
     @classmethod
     def build_read_cmd(cls, addr: int) -> bytes:
@@ -113,23 +105,23 @@ class Rs485Driver:
             time.sleep(TURNAROUND_DELAY_S)
 
         # Expected response:
-        # FB addr 30 carry(4) value(2) crc(2) => 11 bytes total
-        resp = self.read_exact(self.serial, 11)
-        if len(resp) != 11:
+        # FB addr 30 carry(4) value(2) crc(1) => 10 bytes total
+        resp = self.read_exact(self.serial, 10)
+        if len(resp) != 10:
             raise TimeoutError(f"Short response from encoder {addr}: {resp.hex()}")
 
         if resp[0] != 0xFB or resp[1] != (addr & 0xFF) or resp[2] != 0x30:
             raise ValueError(f"Bad response header from encoder {addr}: {resp.hex()}")
 
-        payload = resp[:-2]
-        rx_crc = struct.unpack("<H", resp[-2:])[0]
-        calc_crc = self.crc16_modbus(payload)
+        payload = resp[:-1]
+        rx_crc = resp[-1]
+        calc_crc = self.checksum(payload)
         if rx_crc != calc_crc:
             raise ValueError(
-                f"CRC mismatch on encoder {addr}: rx=0x{rx_crc:04X}, calc=0x{calc_crc:04X}"
+                f"CRC mismatch on encoder {addr}: rx=0x{rx_crc:02X}, calc=0x{calc_crc:02X}"
             )
 
-        data = resp[3:-2]
+        data = resp[3:-1]
         carry, value = struct.unpack(f"{ENDIAN}iH", data)
         position_counts = carry * COUNTS_PER_REV + value
         radians = position_counts * RADIANS_PER_COUNT / GEAR_RATIO
@@ -177,8 +169,11 @@ class Rs485Driver:
     def _send_frame(self, frame: bytes, expect_len: int) -> bytes:
         frame = self.append_crc(frame)
         self.serial.reset_input_buffer()
+        self.serial.reset_output_buffer()
         self.serial.write(frame)
         self.serial.flush()
+        if TURNAROUND_DELAY_S > 0:
+            time.sleep(TURNAROUND_DELAY_S)
         return self._read_exact(expect_len)
 
     def enable_motor(self, addr: int, enable: bool = True) -> bool:
@@ -190,19 +185,13 @@ class Rs485Driver:
           status = 0 => fail
         """
         frame = bytes([0xFA, addr & 0xFF, 0xF3, 0x01 if enable else 0x00])
-        resp = self._send_frame(frame, 6)
+        resp = self._send_frame(frame, 4)
 
-        if len(resp) != 6:
+        if len(resp) != 4:
             raise TimeoutError(f"Short enable response from motor {addr}: {resp.hex()}")
 
         if resp[0] != 0xFB or resp[1] != (addr & 0xFF) or resp[2] != 0xF3:
             raise ValueError(f"Bad enable response header from motor {addr}: {resp.hex()}")
-
-        payload = resp[:-2]
-        rx_crc = struct.unpack("<H", resp[-2:])[0]
-        calc_crc = self.crc16_modbus(payload)
-        if rx_crc != calc_crc:
-            raise ValueError(f"CRC mismatch on enable response motor {addr}")
 
         status = resp[3]
         return status == 1
@@ -241,19 +230,13 @@ class Rs485Driver:
         pulse_bytes = int(pulses).to_bytes(4, byteorder="big", signed=False)
 
         frame = bytes([0xFA, addr & 0xFF, 0xFD, byte4, byte5, acc & 0xFF]) + pulse_bytes
-        resp = self._send_frame(frame, 6)
+        resp = self._send_frame(frame, 4)
 
-        if len(resp) != 6:
+        if len(resp) != 4:
             raise TimeoutError(f"Short move response from motor {addr}: {resp.hex()}")
 
         if resp[0] != 0xFB or resp[1] != (addr & 0xFF) or resp[2] != 0xFD:
             raise ValueError(f"Bad move response header from motor {addr}: {resp.hex()}")
-
-        payload = resp[:-2]
-        rx_crc = struct.unpack("<H", resp[-2:])[0]
-        calc_crc = self.crc16_modbus(payload)
-        if rx_crc != calc_crc:
-            raise ValueError(f"CRC mismatch on move response motor {addr}")
 
         return resp[3]
 
