@@ -1,17 +1,35 @@
 #!/usr/bin/env python3
 import math
+import os
 import serial
 import struct
+import time
 from typing import List, Optional
 
 
-PORT = "/dev/ttyUSB0"      # change to /dev/ttyTHS1 if using Jetson UART
-BAUDRATE = 38400          # change to your encoder's baud rate
-TIMEOUT = 0.2
+PORT = os.getenv("RS485_PORT", "/dev/ttyUSB0")
+BAUDRATE = int(os.getenv("RS485_BAUDRATE", "38400"))
+TIMEOUT = float(os.getenv("RS485_TIMEOUT", "0.2"))
+READ_RETRIES = int(os.getenv("RS485_READ_RETRIES", "3"))
+TURNAROUND_DELAY_S = float(os.getenv("RS485_TURNAROUND_DELAY_S", "0.003"))
+INTER_READ_DELAY_S = float(os.getenv("RS485_INTER_READ_DELAY_S", "0.002"))
+PARITY = os.getenv("RS485_PARITY", "N").upper()
+STOPBITS = float(os.getenv("RS485_STOPBITS", "1"))
 ENDIAN = "<"               # "<" little-endian, ">" big-endian
 COUNTS_PER_REV = 16384
 RADIANS_PER_COUNT = 2 * math.pi / COUNTS_PER_REV
 GEAR_RATIO = 5
+
+_PARITY_MAP = {
+    "N": serial.PARITY_NONE,
+    "E": serial.PARITY_EVEN,
+    "O": serial.PARITY_ODD,
+}
+_STOPBITS_MAP = {
+    1.0: serial.STOPBITS_ONE,
+    1.5: serial.STOPBITS_ONE_POINT_FIVE,
+    2.0: serial.STOPBITS_TWO,
+}
 
 class Rs485Driver:
     def __init__(
@@ -19,12 +37,22 @@ class Rs485Driver:
         port: str = PORT,
         baudrate: int = BAUDRATE,
         timeout: float = TIMEOUT,
+        retries: int = READ_RETRIES,
         ser: Optional[serial.Serial] = None,
     ) -> None:
         self.port = port
         self.baudrate = baudrate
         self.timeout = timeout
-        self.serial = ser or serial.Serial(port=port, baudrate=baudrate, timeout=timeout)
+        self.retries = max(1, retries)
+        self._last_error_log = {addr: 0.0 for addr in range(1, 5)}
+        self.serial = ser or serial.Serial(
+            port=port,
+            baudrate=baudrate,
+            timeout=timeout,
+            bytesize=serial.EIGHTBITS,
+            parity=_PARITY_MAP.get(PARITY, serial.PARITY_NONE),
+            stopbits=_STOPBITS_MAP.get(STOPBITS, serial.STOPBITS_ONE),
+        )
         self._last_positions = {addr: 0.0 for addr in range(1, 5)}
 
     def __enter__(self) -> "Rs485Driver":
@@ -73,46 +101,63 @@ class Rs485Driver:
             buf.extend(chunk)
         return bytes(buf)
 
+    def _read_encoder_once(self, addr: int) -> float:
+        cmd = self.build_read_cmd(addr)
+        self.serial.reset_input_buffer()
+        self.serial.reset_output_buffer()
+        self.serial.write(cmd)
+        self.serial.flush()
+
+        # Some RS485 adapters need a short TX->RX turnaround window.
+        if TURNAROUND_DELAY_S > 0:
+            time.sleep(TURNAROUND_DELAY_S)
+
+        # Expected response:
+        # FB addr 30 carry(4) value(2) crc(2) => 11 bytes total
+        resp = self.read_exact(self.serial, 11)
+        if len(resp) != 11:
+            raise TimeoutError(f"Short response from encoder {addr}: {resp.hex()}")
+
+        if resp[0] != 0xFB or resp[1] != (addr & 0xFF) or resp[2] != 0x30:
+            raise ValueError(f"Bad response header from encoder {addr}: {resp.hex()}")
+
+        payload = resp[:-2]
+        rx_crc = struct.unpack("<H", resp[-2:])[0]
+        calc_crc = self.crc16_modbus(payload)
+        if rx_crc != calc_crc:
+            raise ValueError(
+                f"CRC mismatch on encoder {addr}: rx=0x{rx_crc:04X}, calc=0x{calc_crc:04X}"
+            )
+
+        data = resp[3:-2]
+        carry, value = struct.unpack(f"{ENDIAN}iH", data)
+        position_counts = carry * COUNTS_PER_REV + value
+        radians = position_counts * RADIANS_PER_COUNT / GEAR_RATIO
+        self._last_positions[addr] = radians
+        return radians
+
     def read_encoder(self, addr: int) -> float:
         """
         Reads one encoder and returns a joint angle in radians.
         The first successful read for each encoder is treated as 0.0 rad.
         """
-        try:
-            cmd = self.build_read_cmd(addr)
-            self.serial.reset_input_buffer()
-            self.serial.write(cmd)
-            self.serial.flush()
+        for attempt in range(self.retries):
+            try:
+                return self._read_encoder_once(addr)
+            except Exception as exc:
+                if attempt < self.retries - 1 and INTER_READ_DELAY_S > 0:
+                    time.sleep(INTER_READ_DELAY_S)
+                    continue
 
-            # Expected response:
-            # FB addr 30 carry(4) value(2) crc(2) => 11 bytes total
-            resp = self.read_exact(self.serial, 11)
-            if len(resp) != 11:
-                raise TimeoutError(f"Short response from encoder {addr}: {resp.hex()}")
-
-            # Basic header check
-            if resp[0] != 0xFB or resp[1] != (addr & 0xFF) or resp[2] != 0x30:
-                raise ValueError(f"Bad response header from encoder {addr}: {resp.hex()}")
-
-            # CRC check
-            payload = resp[:-2]
-            rx_crc = struct.unpack("<H", resp[-2:])[0]
-            calc_crc = self.crc16_modbus(payload)
-            if rx_crc != calc_crc:
-                raise ValueError(
-                    f"CRC mismatch on encoder {addr}: rx=0x{rx_crc:04X}, calc=0x{calc_crc:04X}"
-                )
-
-            data = resp[3:-2]
-            carry, value = struct.unpack(f"{ENDIAN}iH", data)
-            position_counts = carry * COUNTS_PER_REV + value
-            
-            radians = position_counts * RADIANS_PER_COUNT / GEAR_RATIO
-            self._last_positions[addr] = radians
-            return radians
-        except Exception as exc:
-            print(f"Error reading encoder {addr}: {exc}")
-            return self._last_positions.get(addr, 0)
+                now = time.monotonic()
+                # Throttle error spam if the state loop runs at high frequency.
+                if now - self._last_error_log[addr] > 1.0:
+                    print(
+                        f"Error reading encoder {addr} on {self.port} @ {self.baudrate}: {exc}"
+                    )
+                    self._last_error_log[addr] = now
+                return self._last_positions.get(addr, 0.0)
+        return self._last_positions.get(addr, 0.0)
 
     def read_all_joints(self) -> dict:
         joints: List[float] = []
