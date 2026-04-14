@@ -11,5 +11,6 @@ docker run -it \
 	-v "${REPO_ROOT}/jetson:/rocket/jetson" \
 	-v /proc//device-tree:/proc/device-tree:ro \
 	-v /sys:/sys:ro \
+	-v "${REPO_ROOT}:/rocket"\
 	rocket \
-	python3 rocket_rl.py rocket_direct.onnx
+	# python3 rocket_rl.py rocket_direct.onnx
