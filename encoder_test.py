@@ -49,8 +49,8 @@ def parse_encoder_response(resp: bytes):
         raise ValueError(f"CRC mismatch: expected {crc_expected:02X}, got {crc_received:02X}")
 
     # Most likely big-endian based on the protocol style
-    carry = struct.unpack(">i", resp[3:7])[0]
-    value = struct.unpack(">H", resp[7:9])[0]
+    carry = struct.unpack("<i", resp[3:7])[0]
+    value = struct.unpack("<H", resp[7:9])[0]
 
     return carry, value
 
