@@ -81,7 +81,10 @@ class Rs485Driver:
     @classmethod
     def build_read_cmd(cls, addr: int) -> bytes:
         frame = bytes([0xFA, addr & 0xFF, 0x30])
-        return cls.append_crc(frame)
+        x = cls.append_crc(frame)
+        for i in x:
+            print(f"{x}")
+        return x
 
     @staticmethod
     def read_exact(ser: serial.Serial, n: int) -> bytes:
@@ -99,7 +102,6 @@ class Rs485Driver:
         self.serial.reset_output_buffer()
         self.serial.write(cmd)
         self.serial.flush()
-
         # Some RS485 adapters need a short TX->RX turnaround window.
         if TURNAROUND_DELAY_S > 0:
             time.sleep(TURNAROUND_DELAY_S)
