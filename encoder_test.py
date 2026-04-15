@@ -136,12 +136,12 @@ def main():
     ) as ser:
         enable_status = send_and_read_status(ser, build_enable_command(ADDR, True))
         print(f"Motor enable status: {enable_status}")
-
+        direction = 0
         while True:
             try:
                 move_status = send_and_read_status(
                     ser,
-                    build_move_command(addr=ADDR, pulses=50, direction=0),
+                    build_move_command(addr=ADDR, pulses=50, direction=direction),
                 )
                 print(f"Move status: {move_status} (sent 50 pulses forward)")
 
@@ -164,6 +164,7 @@ def main():
                     f"Encoder: carry={carry} value={value} full_position={full_position} "
                     f"relative_counts={relative_counts} angle_deg={angle_deg:.3f}"
                 )
+                direction = 0 if direction == 1 else 0
             except Exception as e:
                 print("Error:", e)
 
