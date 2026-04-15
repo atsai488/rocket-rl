@@ -47,6 +47,7 @@ def parse_encoder_response(resp: bytes):
     crc_received = resp[-1]
     if crc_expected != crc_received:
         raise ValueError(f"CRC mismatch: expected {crc_expected:02X}, got {crc_received:02X}")
+    
 
     # Most likely big-endian based on the protocol style
     carry = struct.unpack("<i", resp[3:7])[0]
@@ -62,6 +63,7 @@ def read_encoder(ser: serial.Serial, addr: int = ADDR):
     ser.flush()
 
     resp = read_exactly(ser, 10, timeout_s=0.5)
+    print("RESP:", resp.hex())
     if len(resp) != 10:
         raise TimeoutError(f"Incomplete response: {resp.hex()}")
 

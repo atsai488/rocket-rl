@@ -9,13 +9,13 @@ from typing import List, Optional
 
 PORT = os.getenv("RS485_PORT", "/dev/ttyUSB0")
 BAUDRATE = int(os.getenv("RS485_BAUDRATE", "38400"))
-TIMEOUT = float(os.getenv("RS485_TIMEOUT", "0.2"))
-READ_RETRIES = int(os.getenv("RS485_READ_RETRIES", "3"))
-TURNAROUND_DELAY_S = float(os.getenv("RS485_TURNAROUND_DELAY_S", "0.003"))
-INTER_READ_DELAY_S = float(os.getenv("RS485_INTER_READ_DELAY_S", "0.002"))
+TIMEOUT = float(os.getenv("RS485_TIMEOUT", "0.1"))
+READ_RETRIES = int(os.getenv("RS485_READ_RETRIES", "1"))
+TURNAROUND_DELAY_S = float(os.getenv("RS485_TURNAROUND_DELAY_S", "0.0003"))
+INTER_READ_DELAY_S = float(os.getenv("RS485_INTER_READ_DELAY_S", "0.0002"))
 PARITY = os.getenv("RS485_PARITY", "N").upper()
 STOPBITS = float(os.getenv("RS485_STOPBITS", "1"))
-ENDIAN = os.getenv("RS485_ENDIAN", ">")
+ENDIAN = os.getenv("RS485_ENDIAN", "<")
 COUNTS_PER_REV = 16384
 RADIANS_PER_COUNT = 2 * math.pi / COUNTS_PER_REV
 GEAR_RATIO = 5
@@ -80,21 +80,44 @@ class Rs485Driver:
 
     @classmethod
     def build_read_cmd(cls, addr: int) -> bytes:
-        frame = bytes([0xFA, addr & 0xFF, 0x30])
-        x = cls.append_crc(frame)
-        for i in x:
-            print(f"{x}")
-        return x
+        frame = bytearray([0xFA, addr & 0xFF, 0x30])
+        frame.append(cls.checksum(frame))
+        return bytes(frame)
 
     @staticmethod
     def read_exact(ser: serial.Serial, n: int) -> bytes:
+        deadline = time.time() + 0.5
         buf = bytearray()
-        while len(buf) < n:
+        while len(buf) < n and time.time() < deadline:
             chunk = ser.read(n - len(buf))
-            if not chunk:
-                break
-            buf.extend(chunk)
+            if chunk:
+                buf.extend(chunk)
         return bytes(buf)
+
+    @classmethod
+    def parse_encoder_response(cls, addr: int, resp: bytes) -> tuple[int, int]:
+        if len(resp) != 10:
+            raise ValueError(f"Bad response length: {len(resp)} bytes, got {resp.hex()}")
+
+        if resp[0] != 0xFB:
+            raise ValueError(f"Bad header from encoder {addr}: {resp[0]:02X}")
+
+        if resp[1] != (addr & 0xFF):
+            raise ValueError(f"Bad address in response from encoder {addr}: {resp.hex()}")
+
+        if resp[2] != 0x30:
+            raise ValueError(f"Bad function code from encoder {addr}: {resp[2]:02X}")
+
+        calc_crc = cls.checksum(resp[:-1])
+        rx_crc = resp[-1]
+        if calc_crc != rx_crc:
+            raise ValueError(
+                f"CRC mismatch on encoder {addr}: expected 0x{calc_crc:02X}, got 0x{rx_crc:02X}"
+            )
+
+        carry = struct.unpack(f"{ENDIAN}i", resp[3:7])[0]
+        value = struct.unpack(f"{ENDIAN}H", resp[7:9])[0]
+        return carry, value
 
     def _read_encoder_once(self, addr: int) -> float:
         cmd = self.build_read_cmd(addr)
@@ -106,25 +129,11 @@ class Rs485Driver:
         if TURNAROUND_DELAY_S > 0:
             time.sleep(TURNAROUND_DELAY_S)
 
-        # Expected response:
-        # FB addr 30 carry(4) value(2) crc(1) => 10 bytes total
         resp = self.read_exact(self.serial, 10)
         if len(resp) != 10:
             raise TimeoutError(f"Short response from encoder {addr}: {resp.hex()}")
 
-        if resp[0] != 0xFB or resp[1] != (addr & 0xFF) or resp[2] != 0x30:
-            raise ValueError(f"Bad response header from encoder {addr}: {resp.hex()}")
-
-        payload = resp[:-1]
-        rx_crc = resp[-1]
-        calc_crc = self.checksum(payload)
-        if rx_crc != calc_crc:
-            raise ValueError(
-                f"CRC mismatch on encoder {addr}: rx=0x{rx_crc:02X}, calc=0x{calc_crc:02X}"
-            )
-
-        data = resp[3:-1]
-        carry, value = struct.unpack(f"{ENDIAN}iH", data)
+        carry, value = self.parse_encoder_response(addr, resp)
         position_counts = carry * COUNTS_PER_REV + value
         radians = position_counts * RADIANS_PER_COUNT / GEAR_RATIO
         self._last_positions[addr] = radians
