@@ -53,6 +53,9 @@ class Rs485Driver:
             parity=_PARITY_MAP.get(PARITY, serial.PARITY_NONE),
             stopbits=_STOPBITS_MAP.get(STOPBITS, serial.STOPBITS_ONE),
         )
+        self._zero_position_counts: dict[int, Optional[int]] = {
+            addr: None for addr in range(1, 5)
+        }
         self._last_positions = {addr: 0.0 for addr in range(1, 5)}
 
     def __enter__(self) -> "Rs485Driver":
@@ -135,7 +138,14 @@ class Rs485Driver:
 
         carry, value = self.parse_encoder_response(addr, resp)
         position_counts = carry * COUNTS_PER_REV + value
-        radians = position_counts * RADIANS_PER_COUNT / GEAR_RATIO
+
+        zero_counts = self._zero_position_counts[addr]
+        if zero_counts is None:
+            zero_counts = position_counts
+            self._zero_position_counts[addr] = zero_counts
+
+        relative_counts = position_counts - zero_counts
+        radians = relative_counts * RADIANS_PER_COUNT / GEAR_RATIO
         self._last_positions[addr] = radians
         return radians
 
@@ -187,25 +197,6 @@ class Rs485Driver:
             time.sleep(TURNAROUND_DELAY_S)
         return self._read_exact(expect_len)
 
-    def enable_motor(self, addr: int, enable: bool = True) -> bool:
-        """
-        Manual 6.2:
-          Downlink: FA addr F3 en CRC
-          Uplink:   FB addr F3 status CRC
-          status = 1 => success
-          status = 0 => fail
-        """
-        frame = bytes([0xFA, addr & 0xFF, 0xF3, 0x01 if enable else 0x00])
-        resp = self._send_frame(frame, 4)
-
-        if len(resp) != 4:
-            raise TimeoutError(f"Short enable response from motor {addr}: {resp.hex()}")
-
-        if resp[0] != 0xFB or resp[1] != (addr & 0xFF) or resp[2] != 0xF3:
-            raise ValueError(f"Bad enable response header from motor {addr}: {resp.hex()}")
-
-        status = resp[3]
-        return status == 1
 
     def move_position(
         self,
@@ -264,10 +255,6 @@ class Rs485Driver:
 
         for addr, target_rad in joints.items():
             if not isinstance(addr, int):
-                continue
-
-            if not self.enable_motor(addr, True):
-                results[addr] = {"enabled": False, "status": None}
                 continue
 
             current_rad = self._last_positions.get(addr, 0.0)
