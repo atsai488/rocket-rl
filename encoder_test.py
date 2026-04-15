@@ -8,6 +8,8 @@ BAUDRATE = int(os.getenv("RS485_BAUDRATE", "38400"))
 
 ADDR = 0x01
 FUNC_READ_ENCODER = 0x30
+FUNC_ENABLE_MOTOR = 0xF3
+FUNC_MOVE_POSITION = 0xFD
 COUNTS_PER_REV = 0x4000
 
 
@@ -71,6 +73,56 @@ def read_encoder(ser: serial.Serial, addr: int = ADDR):
     return parse_encoder_response(resp)
 
 
+def send_and_read_status(ser: serial.Serial, frame: bytes, timeout_s: float = 0.5) -> int:
+    ser.reset_input_buffer()
+    ser.write(frame)
+    ser.flush()
+
+    resp = read_exactly(ser, 4, timeout_s=timeout_s)
+    if len(resp) != 4:
+        raise TimeoutError(f"Incomplete status response: {resp.hex()}")
+    if resp[0] != 0xFB:
+        raise ValueError(f"Bad status header: {resp.hex()}")
+    if resp[1] != ADDR:
+        raise ValueError(f"Bad status address: {resp.hex()}")
+
+    return resp[3]
+
+
+def build_enable_command(addr: int = ADDR, enable: bool = True) -> bytes:
+    frame = bytearray([0xFA, addr, FUNC_ENABLE_MOTOR, 0x01 if enable else 0x00])
+    frame.append(calc_crc(frame))
+    return bytes(frame)
+
+
+def build_move_command(
+    addr: int = ADDR,
+    pulses: int = 50,
+    speed: int = 0x0280,
+    acc: int = 2,
+    direction: int = 0,
+) -> bytes:
+    if not (0 <= speed <= 0x0FFF):
+        raise ValueError("speed must be in [0, 4095]")
+    if direction not in (0, 1):
+        raise ValueError("direction must be 0 (forward/CW) or 1 (reverse/CCW)")
+
+    byte4 = ((direction & 0x01) << 7) | ((speed >> 8) & 0x0F)
+    byte5 = speed & 0xFF
+    pulse_bytes = int(pulses).to_bytes(4, byteorder="big", signed=False)
+
+    frame = bytearray([0xFA, addr, FUNC_MOVE_POSITION, byte4, byte5, acc & 0xFF])
+    frame.extend(pulse_bytes)
+    frame.append(calc_crc(frame))
+    return bytes(frame)
+
+
+def build_stop_command(addr: int = ADDR, acc: int = 2) -> bytes:
+    frame = bytearray([0xFA, addr, FUNC_MOVE_POSITION, 0x00, 0x00, acc & 0xFF, 0x00, 0x00, 0x00, 0x00])
+    frame.append(calc_crc(frame))
+    return bytes(frame)
+
+
 def main():
     zero_offset = None
 
@@ -82,9 +134,24 @@ def main():
         stopbits=serial.STOPBITS_ONE,
         timeout=0.05,
     ) as ser:
+        enable_status = send_and_read_status(ser, build_enable_command(ADDR, True))
+        print(f"Motor enable status: {enable_status}")
+
         while True:
             try:
-                carry, value = read_encoder(ser)
+                move_status = send_and_read_status(
+                    ser,
+                    build_move_command(addr=ADDR, pulses=50, direction=0),
+                )
+                print(f"Move status: {move_status} (sent 50 pulses forward)")
+
+                # Give the motor time to execute before issuing stop/readback.
+                time.sleep(0.2)
+
+                stop_status = send_and_read_status(ser, build_stop_command(addr=ADDR, acc=2))
+                print(f"Stop status: {stop_status}")
+
+                carry, value = read_encoder(ser, ADDR)
                 full_position = carry * COUNTS_PER_REV + value
 
                 if zero_offset is None:
@@ -94,13 +161,13 @@ def main():
                 relative_counts = full_position - zero_offset
                 angle_deg = (relative_counts / COUNTS_PER_REV) * 360.0
                 print(
-                    f"carry={carry} value={value} full_position={full_position} "
+                    f"Encoder: carry={carry} value={value} full_position={full_position} "
                     f"relative_counts={relative_counts} angle_deg={angle_deg:.3f}"
                 )
             except Exception as e:
                 print("Error:", e)
 
-            time.sleep(0.1)
+            time.sleep(0.3)
 
 
 if __name__ == "__main__":
