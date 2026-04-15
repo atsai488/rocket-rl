@@ -7,6 +7,7 @@ PORT = os.getenv("RS485_PORT", "/dev/ttyUSB0")
 BAUDRATE = int(os.getenv("RS485_BAUDRATE", "38400"))
 
 ADDR = 0x01
+ENCODER_ADDRS = [1, 2, 3, 4]
 FUNC_READ_ENCODER = 0x30
 FUNC_ENABLE_MOTOR = 0xF3
 FUNC_MOVE_POSITION = 0xFD
@@ -66,9 +67,11 @@ def read_encoder(ser: serial.Serial, addr: int = ADDR):
     ser.flush()
 
     resp = read_exactly(ser, 10, timeout_s=0.5)
-    print("RESP:", resp.hex())
+    print(f"RESP addr={addr}:", resp.hex())
     if len(resp) != 10:
         raise TimeoutError(f"Incomplete response: {resp.hex()}")
+    if resp[1] != (addr & 0xFF):
+        raise ValueError(f"Response address mismatch: expected {addr}, got frame {resp.hex()}")
 
     return parse_encoder_response(resp)
 
@@ -124,7 +127,7 @@ def build_stop_command(addr: int = ADDR, acc: int = 2) -> bytes:
 
 
 def main():
-    zero_offset = None
+    zero_offsets = {}
 
     with serial.Serial(
         port=PORT,
@@ -134,39 +137,24 @@ def main():
         stopbits=serial.STOPBITS_ONE,
         timeout=0.05,
     ) as ser:
-        enable_status = send_and_read_status(ser, build_enable_command(ADDR, True))
-        print(f"Motor enable status: {enable_status}")
-        direction = 0
         while True:
-            try:
-                move_status = send_and_read_status(
-                    ser,
-                    build_move_command(addr=ADDR, pulses=50, direction=direction),
-                )
-                print(f"Move status: {move_status} (sent 50 pulses forward)")
+            for addr in ENCODER_ADDRS:
+                try:
+                    carry, value = read_encoder(ser, addr)
+                    full_position = carry * COUNTS_PER_REV + value
 
-                # Give the motor time to execute before issuing stop/readback.
-                time.sleep(0.2)
+                    if addr not in zero_offsets:
+                        zero_offsets[addr] = full_position
+                        print(f"Encoder {addr}: zero offset captured: {zero_offsets[addr]}")
 
-                stop_status = send_and_read_status(ser, build_stop_command(addr=ADDR, acc=2))
-                print(f"Stop status: {stop_status}")
-
-                carry, value = read_encoder(ser, ADDR)
-                full_position = carry * COUNTS_PER_REV + value
-
-                if zero_offset is None:
-                    zero_offset = full_position
-                    print(f"Zero offset captured: {zero_offset}")
-
-                relative_counts = full_position - zero_offset
-                angle_deg = (relative_counts / COUNTS_PER_REV) * 360.0
-                print(
-                    f"Encoder: carry={carry} value={value} full_position={full_position} "
-                    f"relative_counts={relative_counts} angle_deg={angle_deg:.3f}"
-                )
-                direction = 0 if direction == 1 else 0
-            except Exception as e:
-                print("Error:", e)
+                    relative_counts = full_position - zero_offsets[addr]
+                    angle_deg = (relative_counts / COUNTS_PER_REV) * 360.0
+                    print(
+                        f"Encoder {addr}: carry={carry} value={value} full_position={full_position} "
+                        f"relative_counts={relative_counts} angle_deg={angle_deg:.3f}"
+                    )
+                except Exception as e:
+                    print(f"Encoder {addr} error: {e}")
 
             time.sleep(0.3)
 
