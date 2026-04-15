@@ -8,6 +8,7 @@ BAUDRATE = int(os.getenv("RS485_BAUDRATE", "38400"))
 
 ADDR = 0x01
 FUNC_READ_ENCODER = 0x30
+COUNTS_PER_REV = 0x4000
 
 
 def calc_crc(data: bytes) -> int:
@@ -49,9 +50,9 @@ def parse_encoder_response(resp: bytes):
         raise ValueError(f"CRC mismatch: expected {crc_expected:02X}, got {crc_received:02X}")
     
 
-    # Most likely big-endian based on the protocol style
-    carry = struct.unpack("<i", resp[3:7])[0]
-    value = struct.unpack("<H", resp[7:9])[0]
+    # Encoder payload is MSB-first (big-endian): carry(4), value(2)
+    carry = struct.unpack(">i", resp[3:7])[0]
+    value = struct.unpack(">H", resp[7:9])[0]
 
     return carry, value
 
@@ -71,6 +72,8 @@ def read_encoder(ser: serial.Serial, addr: int = ADDR):
 
 
 def main():
+    zero_offset = None
+
     with serial.Serial(
         port=PORT,
         baudrate=BAUDRATE,
@@ -82,8 +85,18 @@ def main():
         while True:
             try:
                 carry, value = read_encoder(ser)
-                full_position = carry * 0x4000 + value
-                print(f"carry={carry} value={value} full_position={full_position}")
+                full_position = carry * COUNTS_PER_REV + value
+
+                if zero_offset is None:
+                    zero_offset = full_position
+                    print(f"Zero offset captured: {zero_offset}")
+
+                relative_counts = full_position - zero_offset
+                angle_deg = (relative_counts / COUNTS_PER_REV) * 360.0
+                print(
+                    f"carry={carry} value={value} full_position={full_position} "
+                    f"relative_counts={relative_counts} angle_deg={angle_deg:.3f}"
+                )
             except Exception as e:
                 print("Error:", e)
 
