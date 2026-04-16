@@ -139,10 +139,10 @@ def main():
         try:
             # enable_status = send_and_read_status(ser, build_enable_command(addr=target_addr, enable=True))
             move_status = send_and_read_status(ser, build_move_command(addr=target_addr, speed=10, direction=0))
-            time.sleep(0.08)
+            time.sleep(0.05)
             move_status = send_and_read_status(ser, build_move_command(addr=target_addr, speed=10, direction=1))
             # print(f"Servo {target_addr}: enabled (status=0x{enable_status:02X}), move command sent at speed=1 (status=0x{move_status:02X})")
-            time.sleep(0.08)
+            time.sleep(0.05)
             move_status = send_and_read_status(ser, build_stop_command(addr=target_addr))
 
         except Exception as e:
