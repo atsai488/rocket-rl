@@ -104,12 +104,12 @@ class Rocket:
                     for mid, angle, scale in zip(JOINT_POS_MID, joint_angles, JOINT_SCALE)
                 ]
 
-                # self.stepper_driver.send_joint_position(
-                #    {addr: scaled_joint_angles[addr + 1] for addr in range(1, 5)}
-                # )
+                self.stepper_driver.send_joint_position(
+                   {addr: scaled_joint_angles[addr + 1] for addr in range(1, 5)}
+                )
                 # self.servo_driver_right.hold(scaled_joint_angles[0])
                 # self.servo_driver_left.hold(scaled_joint_angles[1])
-                # self._started_streaming = True
+                self._started_streaming = True
                 print("Sending command:", scaled_joint_angles)
             else:
                 self.logger.warning("timing policy timeout")
