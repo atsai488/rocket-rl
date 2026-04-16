@@ -139,6 +139,8 @@ class Rs485Driver:
 
         relative_counts = position_counts - zero_counts
         radians = relative_counts * RADIANS_PER_COUNT / GEAR_RATIO
+        if (addr == 0x01 or addr == 0x04):
+            radians *= -1
         self._last_positions[addr] = radians
         return radians
 
