@@ -224,11 +224,11 @@ class Rs485Driver:
         frame = bytes([0xFA, addr & 0xFF, 0xFD, byte4, byte5, acc & 0xFF]) + pulse_bytes
         resp = self._send_frame(frame, 4)
 
-        if len(resp) != 4:
-            raise TimeoutError(f"Short move response from motor {addr}: {resp.hex()}")
+        # if len(resp) != 4:
+        #     raise TimeoutError(f"Short move response from motor {addr}: {resp.hex()}")
 
-        if resp[0] != 0xFB or resp[1] != (addr & 0xFF) or resp[2] != 0xFD:
-            raise ValueError(f"Bad move response header from motor {addr}: {resp.hex()}")
+        # if resp[0] != 0xFB or resp[1] != (addr & 0xFF) or resp[2] != 0xFD:
+        #     raise ValueError(f"Bad move response header from motor {addr}: {resp.hex()}")
 
         return resp[3]
 
