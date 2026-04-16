@@ -57,9 +57,9 @@ class ServoController:
 def main() -> None:
     pin = int(os.getenv("SERVO_PIN", str(DEFAULT_SERVO_PIN)))
     hold_s = float(os.getenv("SERVO_HOLD_S", "2.0"))
-    target_deg = 15.0
+    GPIO.setmode(GPIO.TEGRA_SOC)
+    target_deg = 85.0
     target_rad = math.radians(target_deg)
-
     print(f"Moving servo on pin {pin} to {target_deg} degrees for {hold_s:.1f}s")
     with ServoController(pin=pin) as servo:
         servo.hold(target_rad)
