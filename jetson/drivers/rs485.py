@@ -15,21 +15,10 @@ TURNAROUND_DELAY_S = float(os.getenv("RS485_TURNAROUND_DELAY_S", "0.0003"))
 INTER_READ_DELAY_S = float(os.getenv("RS485_INTER_READ_DELAY_S", "0.0002"))
 PARITY = os.getenv("RS485_PARITY", "N").upper()
 STOPBITS = float(os.getenv("RS485_STOPBITS", "1"))
-ENDIAN = os.getenv("RS485_ENDIAN", "<")
+ENDIAN = os.getenv("RS485_ENDIAN", ">")
 COUNTS_PER_REV = 16384
 RADIANS_PER_COUNT = 2 * math.pi / COUNTS_PER_REV
 GEAR_RATIO = 5
-
-_PARITY_MAP = {
-    "N": serial.PARITY_NONE,
-    "E": serial.PARITY_EVEN,
-    "O": serial.PARITY_ODD,
-}
-_STOPBITS_MAP = {
-    1.0: serial.STOPBITS_ONE,
-    1.5: serial.STOPBITS_ONE_POINT_FIVE,
-    2.0: serial.STOPBITS_TWO,
-}
 
 class Rs485Driver:
     def __init__(
@@ -46,13 +35,13 @@ class Rs485Driver:
         self.retries = max(1, retries)
         self._last_error_log = {addr: 0.0 for addr in range(1, 5)}
         self.serial = ser or serial.Serial(
-            port=port,
-            baudrate=baudrate,
-            timeout=timeout,
+            port=PORT,
+            baudrate=BAUDRATE,
             bytesize=serial.EIGHTBITS,
-            parity=_PARITY_MAP.get(PARITY, serial.PARITY_NONE),
-            stopbits=_STOPBITS_MAP.get(STOPBITS, serial.STOPBITS_ONE),
-        )
+            parity=serial.PARITY_NONE,
+            stopbits=serial.STOPBITS_ONE,
+            timeout=timeout,
+        ) 
         self._zero_position_counts: dict[int, Optional[int]] = {
             addr: None for addr in range(1, 5)
         }
@@ -265,7 +254,7 @@ class Rs485Driver:
             status = self.move_position(
                 addr=addr,
                 pulses=pulses,
-                speed=0x0280,
+                speed=0x01,
                 acc=2,
                 direction=direction,
             )

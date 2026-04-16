@@ -32,7 +32,7 @@ def main():
     # config = orbit.orbit_configuration.load_configuration(conf_file)
 
     # 333 Hz state update / 6 => ~56 Hz control updates
-    timing_policy = EventDivider(context.event, 6)
+    timing_policy = EventDivider(context.event, 4)
 
     controller = RocketOnnxPositionController(
         context=context,

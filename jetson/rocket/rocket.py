@@ -54,7 +54,8 @@ class Rocket:
             data = self.stepper_driver.read_all_joints()
             context.latest_state.update_from_encoders(data)
             context.event.set()
-            time.sleep(0.00833)
+            print(context.latest_state.to_observation())
+            time.sleep(0.005)
         
     
     def start_command_stream(self, command_policy, timing_policy, atmega):
