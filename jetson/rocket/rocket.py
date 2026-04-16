@@ -54,7 +54,7 @@ class Rocket:
             data = self.stepper_driver.read_all_joints()
             context.latest_state.update_from_encoders(data)
             context.event.set()
-            # print(context.latest_state.to_observation())
+            print(context.latest_state.to_observation())
             time.sleep(0.005)
         
     
@@ -104,9 +104,9 @@ class Rocket:
                     for mid, angle, scale in zip(JOINT_POS_MID, joint_angles, JOINT_SCALE)
                 ]
 
-                self.stepper_driver.send_joint_position(
-                   {addr: scaled_joint_angles[addr + 1] for addr in range(1, 5)}
-                )
+                # self.stepper_driver.send_joint_position(
+                #    {addr: scaled_joint_angles[addr + 1] for addr in range(1, 5)}
+                # )
                 # self.servo_driver_right.hold(scaled_joint_angles[0])
                 # self.servo_driver_left.hold(scaled_joint_angles[1])
                 self._started_streaming = True
