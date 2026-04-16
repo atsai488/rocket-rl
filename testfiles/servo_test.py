@@ -56,7 +56,7 @@ class ServoController:
 
 def main() -> None:
     pin = int(os.getenv("SERVO_PIN", str(DEFAULT_SERVO_PIN)))
-    hold_s = float(os.getenv("SERVO_HOLD_S", "2.0"))
+    hold_s = float(os.getenv("SERVO_HOLD_S", "5.0"))
     GPIO.setmode(GPIO.TEGRA_SOC)
     target_deg = 85.0
     target_rad = math.radians(target_deg)
