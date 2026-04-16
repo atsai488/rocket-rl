@@ -256,7 +256,6 @@ class Rs485Driver:
                 direction = 0 if delta_rad >= 0 else 1
             print(f"{addr}: delta rad: {delta_rad}, pulses: {pulses}", end="\n")
             # input("Move one!")
-            time.sleep(2)
             status = self.move_position(
                 addr=addr,
                 pulses=pulses,
@@ -269,5 +268,6 @@ class Rs485Driver:
                 "status": status,
                 "pulses": pulses,
             }
+        time.sleep(5)
         print("\n")
         return results
