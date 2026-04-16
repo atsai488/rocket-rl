@@ -250,7 +250,7 @@ class Rs485Driver:
             delta_rad = target_rad - current_rad
             pulses = int(round((abs(delta_rad) / (2 * math.pi)) * COUNTS_PER_REV) * GEAR_RATIO)
             direction = 0 if delta_rad >= 0 else 1
-            print(f"{addr}: {delta_rad, pulses}", end=" ")
+            print(f"{addr}: delta rad: {delta_rad}, pulses: {pulses}", end="\n")
             # status = self.move_position(
             #     addr=addr,
             #     pulses=pulses,
