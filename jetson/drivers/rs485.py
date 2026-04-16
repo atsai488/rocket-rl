@@ -4,6 +4,7 @@ import os
 import serial
 import struct
 import time
+from threading import RLock
 from typing import List, Optional
 
 
@@ -34,6 +35,7 @@ class Rs485Driver:
         self.baudrate = baudrate
         self.timeout = timeout
         self.retries = max(1, retries)
+        self._serial_lock = RLock()
         self._last_error_log = {addr: 0.0 for addr in range(1, 5)}
         self.serial = ser or serial.Serial(
             port=PORT,
@@ -114,19 +116,20 @@ class Rs485Driver:
 
     def _read_encoder_once(self, addr: int) -> float:
         cmd = self.build_read_cmd(addr)
-        self.serial.reset_input_buffer()
-        self.serial.reset_output_buffer()
-        self.serial.write(cmd)
-        self.serial.flush()
-        # Some RS485 adapters need a short TX->RX turnaround window.
-        if TURNAROUND_DELAY_S > 0:
-            time.sleep(TURNAROUND_DELAY_S)
+        with self._serial_lock:
+            self.serial.reset_input_buffer()
+            self.serial.reset_output_buffer()
+            self.serial.write(cmd)
+            self.serial.flush()
+            # Some RS485 adapters need a short TX->RX turnaround window.
+            if TURNAROUND_DELAY_S > 0:
+                time.sleep(TURNAROUND_DELAY_S)
 
-        resp = self.read_exact(self.serial, 10)
-        if len(resp) != 10:
-            raise TimeoutError(f"Short response from encoder {addr}: {resp.hex()}")
+            resp = self.read_exact(self.serial, 10)
+            if len(resp) != 10:
+                raise TimeoutError(f"Short response from encoder {addr}: {resp.hex()}")
 
-        carry, value = self.parse_encoder_response(addr, resp)
+            carry, value = self.parse_encoder_response(addr, resp)
         position_counts = carry * COUNTS_PER_REV + value
 
         zero_counts = self._zero_position_counts[addr]
@@ -179,13 +182,14 @@ class Rs485Driver:
 
     def _send_frame(self, frame: bytes, expect_len: int) -> bytes:
         frame = self.append_crc(frame)
-        self.serial.reset_input_buffer()
-        self.serial.reset_output_buffer()
-        self.serial.write(frame)
-        self.serial.flush()
-        if TURNAROUND_DELAY_S > 0:
-            time.sleep(TURNAROUND_DELAY_S)
-        return self._read_exact(expect_len)
+        with self._serial_lock:
+            self.serial.reset_input_buffer()
+            self.serial.reset_output_buffer()
+            self.serial.write(frame)
+            self.serial.flush()
+            if TURNAROUND_DELAY_S > 0:
+                time.sleep(TURNAROUND_DELAY_S)
+            return self._read_exact(expect_len)
 
 
     def move_position(
