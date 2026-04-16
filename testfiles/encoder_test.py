@@ -128,7 +128,7 @@ def build_stop_command(addr: int = ADDR, acc: int = 2) -> bytes:
 
 def main():
     zero_offsets = {}
-    target_addr = 1
+    target_addr = 3
 
     with serial.Serial(
         port=PORT,
@@ -141,9 +141,9 @@ def main():
         try:
             enable_status = send_and_read_status(ser, build_enable_command(addr=target_addr, enable=True))
             move_status = send_and_read_status(ser, build_move_command(addr=target_addr, speed=1, direction=0))
+            move_status = send_and_read_status(ser, build_move_command(addr=target_addr, speed=1, direction=1))
             print(f"Servo {target_addr}: enabled (status=0x{enable_status:02X}), move command sent at speed=1 (status=0x{move_status:02X})")
             time.sleep(1)
-            move_status = send_and_read_status(ser, build_stop_command(addr=target_addr))
         except Exception as e:
             print(f"Servo {target_addr} command error: {e}")
 
