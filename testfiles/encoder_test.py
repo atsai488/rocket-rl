@@ -103,7 +103,7 @@ def build_move_command(
     pulses: int = 50,
     speed: int = 0x0280,
     acc: int = 2,
-    direction: int = 0,
+    direction: int = 1,
 ) -> bytes:
     if not (0 <= speed <= 0x0FFF):
         raise ValueError("speed must be in [0, 4095]")
