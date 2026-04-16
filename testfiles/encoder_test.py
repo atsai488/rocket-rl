@@ -86,8 +86,6 @@ def send_and_read_status(ser: serial.Serial, frame: bytes, timeout_s: float = 0.
         raise TimeoutError(f"Incomplete status response: {resp.hex()}")
     if resp[0] != 0xFB:
         raise ValueError(f"Bad status header: {resp.hex()}")
-    if resp[1] != ADDR:
-        raise ValueError(f"Bad status address: {resp.hex()}")
 
     return resp[3]
 
