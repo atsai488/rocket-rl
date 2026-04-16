@@ -147,26 +147,26 @@ def main():
         except Exception as e:
             print(f"Servo {target_addr} command error: {e}")
 
-        while True:
-            for addr in ENCODER_ADDRS:
-                try:
-                    carry, value = read_encoder(ser, addr)
-                    full_position = carry * COUNTS_PER_REV + value
+        # while True:
+        #     for addr in ENCODER_ADDRS:
+        #         try:
+        #             carry, value = read_encoder(ser, addr)
+        #             full_position = carry * COUNTS_PER_REV + value
 
-                    if addr not in zero_offsets:
-                        zero_offsets[addr] = full_position
-                        print(f"Encoder {addr}: zero offset captured: {zero_offsets[addr]}")
+        #             if addr not in zero_offsets:
+        #                 zero_offsets[addr] = full_position
+        #                 print(f"Encoder {addr}: zero offset captured: {zero_offsets[addr]}")
 
-                    relative_counts = full_position - zero_offsets[addr]
-                    angle_deg = (relative_counts / COUNTS_PER_REV) * 360.0
-                    print(
-                        f"Encoder {addr}: carry={carry} value={value} full_position={full_position} "
-                        f"relative_counts={relative_counts} angle_deg={angle_deg:.3f}"
-                    )
-                except Exception as e:
-                    print(f"Encoder {addr} error: {e}")
+        #             relative_counts = full_position - zero_offsets[addr]
+        #             angle_deg = (relative_counts / COUNTS_PER_REV) * 360.0
+        #             print(
+        #                 f"Encoder {addr}: carry={carry} value={value} full_position={full_position} "
+        #                 f"relative_counts={relative_counts} angle_deg={angle_deg:.3f}"
+        #             )
+        #         except Exception as e:
+        #             print(f"Encoder {addr} error: {e}")
 
-            time.sleep(0.3)
+        #     time.sleep(0.3)
 
 
 if __name__ == "__main__":
