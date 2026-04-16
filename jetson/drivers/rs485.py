@@ -254,7 +254,7 @@ class Rs485Driver:
             status = self.move_position(
                 addr=addr,
                 pulses=pulses,
-                speed=0x01,
+                speed=10,
                 acc=2,
                 direction=direction,
             )
