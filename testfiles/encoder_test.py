@@ -126,7 +126,7 @@ def build_stop_command(addr: int = ADDR, acc: int = 2) -> bytes:
 
 def main():
     zero_offsets = {}
-    target_addr = 3
+    target_addr = 0x04
 
     with serial.Serial(
         port=PORT,
