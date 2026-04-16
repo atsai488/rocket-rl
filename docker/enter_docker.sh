@@ -13,4 +13,5 @@ docker run -it \
 	-v /sys:/sys:ro \
 	-v "${REPO_ROOT}:/rocket"\
 	rocket \
+	python3 ../testfiles/encoder_test.py
 	# python3 rocket_rl.py rocket_direct.onnx
