@@ -8,7 +8,7 @@ from typing import List, Optional
 
 
 PORT = os.getenv("RS485_PORT", "/dev/ttyUSB0")
-BAUDRATE = int(os.getenv("RS485_BAUDRATE", "38400"))
+BAUDRATE = int(os.getenv("RS485_BAUDRATE", "256000"))
 TIMEOUT = float(os.getenv("RS485_TIMEOUT", "0.1"))
 READ_RETRIES = int(os.getenv("RS485_READ_RETRIES", "1"))
 TURNAROUND_DELAY_S = float(os.getenv("RS485_TURNAROUND_DELAY_S", "0.0003"))

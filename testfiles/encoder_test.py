@@ -98,7 +98,7 @@ def build_enable_command(addr: int = ADDR, enable: bool = True) -> bytes:
 
 def build_move_command(
     addr: int = ADDR,
-    pulses: int = 25,
+    pulses: int = 50,
     speed: int = 0x0280,
     acc: int = 2,
     direction: int = 1,
