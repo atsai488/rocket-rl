@@ -1,4 +1,5 @@
 import math
+import os
 import time
 import Jetson.GPIO as GPIO
 
@@ -51,5 +52,23 @@ class ServoController:
 
     def __exit__(self, exc_type, exc, tb):
         self.stop()
+
+
+def main() -> None:
+    pin = int(os.getenv("SERVO_PIN", str(DEFAULT_SERVO_PIN)))
+    hold_s = float(os.getenv("SERVO_HOLD_S", "2.0"))
+    target_deg = 15.0
+    target_rad = math.radians(target_deg)
+
+    print(f"Moving servo on pin {pin} to {target_deg} degrees for {hold_s:.1f}s")
+    with ServoController(pin=pin) as servo:
+        servo.hold(target_rad)
+        time.sleep(hold_s)
+
+    print("Servo test complete")
+
+
+if __name__ == "__main__":
+    main()
         
         
