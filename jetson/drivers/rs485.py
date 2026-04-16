@@ -17,6 +17,7 @@ PARITY = os.getenv("RS485_PARITY", "N").upper()
 STOPBITS = float(os.getenv("RS485_STOPBITS", "1"))
 ENDIAN = os.getenv("RS485_ENDIAN", ">")
 COUNTS_PER_REV = 16384
+PULSES_PER_REV = 200
 RADIANS_PER_COUNT = 2 * math.pi / COUNTS_PER_REV
 GEAR_RATIO = 5
 
@@ -248,7 +249,7 @@ class Rs485Driver:
 
             current_rad = self._last_positions.get(addr, 0.0)
             delta_rad = target_rad - current_rad
-            pulses = int(round((abs(delta_rad) / (2 * math.pi)) * COUNTS_PER_REV) * GEAR_RATIO)
+            pulses = int(round((abs(delta_rad) / (2 * math.pi)) * PULSES_PER_REV) * GEAR_RATIO)
             direction = 0 if delta_rad >= 0 else 1
             print(f"{addr}: delta rad: {delta_rad}, pulses: {pulses}", end="\n")
             # status = self.move_position(
