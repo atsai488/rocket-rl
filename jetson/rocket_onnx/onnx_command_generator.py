@@ -53,5 +53,4 @@ class RocketOnnxPositionController:
 
         if self.verbose:
             print("Command:", target)
-        self.state.latest_state.update_servo_position({"joints": target.tolist()[:2]})
         return JointCommand(joint_angles=target.tolist())
