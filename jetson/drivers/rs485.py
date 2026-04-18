@@ -256,6 +256,7 @@ class Rs485Driver:
             current_rad = self._last_positions.get(addr, 0.0)
             delta_rad = target_rad - current_rad
             pulses = int(round((abs(delta_rad) / (2 * math.pi)) * PULSES_PER_REV) * GEAR_RATIO)
+            pulses = min(pulses, 10)
             if (addr == 0x01 or addr == 0x04):
                 direction = 0 if delta_rad <= 0 else 1
             else:

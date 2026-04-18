@@ -111,8 +111,8 @@ class Rocket:
                 # self.servo_driver_right.hold(scaled_joint_angles[0])
                 # self.servo_driver_left.hold(scaled_joint_angles[1])
                 self._started_streaming = True
-                print("Sending command:", scaled_joint_angles)
-                time.sleep(3)
+                print("Sending command:", scaled_joint_angles, "\n\n")
+                time.sleep(1)
             else:
                 self.logger.warning("timing policy timeout")
                 continue
