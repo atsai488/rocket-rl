@@ -50,7 +50,7 @@ class RocketState:
     def to_observation(self):
         with self.lock:
             obs = np.concatenate(
-                [self.servo_motor_angle, self.stepper_motor_angle, self.motor_velocity, self.gyro, self.accel, self.quat]
+                [self.stepper_motor_angle, self.motor_velocity, self.gyro, self.accel, self.quat]
             )
 
         return obs

@@ -98,18 +98,21 @@ class Rocket:
                     self.logger.warning("command policy returned too few joint angles")
                     continue
 
+                # added a safety clip to joint limits
                 scaled_joint_angles = [
-                    mid + angle * scale
+                    max(mid - scale, min(mid + angle * scale, mid + scale))
                     for mid, angle, scale in zip(JOINT_POS_MID, joint_angles, JOINT_SCALE)
                 ]
 
+
                 self.stepper_driver.send_joint_position(
-                   {addr: scaled_joint_angles[addr] for addr in range(1, 5)}
-                )
+                   {addr: scaled_joint_angles[addr] for addr in range(1, 5)})
+
                 # self.servo_driver_right.hold(scaled_joint_angles[0])
                 # self.servo_driver_left.hold(scaled_joint_angles[1])
                 self._started_streaming = True
                 print("Sending command:", scaled_joint_angles)
+                time.sleep(3)
             else:
                 self.logger.warning("timing policy timeout")
                 continue
