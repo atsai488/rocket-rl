@@ -56,6 +56,11 @@ class Rocket:
              target=self._run_encoder_loop, args=(4, context), daemon=True
         )
         self._state_thread.start()
+        self._encoder_read_1.start() 
+        self._encoder_read_2.start() 
+        self._encoder_read_3.start() 
+        self._encoder_read_4.start() 
+        
     
     def _run_encoder_loop(self, encoder_addr, context):
         while not self._state_stream_stopping:
