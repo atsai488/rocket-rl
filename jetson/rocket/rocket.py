@@ -69,9 +69,12 @@ class Rocket:
     
     def _run_imu_loop(self, imu, context):
         while not self._state_stream_stopping:
+            start = time.time()
             data = imu.read_all()
             context.latest_state.update_from_imu(data)
             context.event.set()
+            end = time.time()
+            print("imu time:", end-start)
         
     
     def start_command_stream(self, command_policy, timing_policy, atmega):
