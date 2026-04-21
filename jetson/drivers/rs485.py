@@ -149,6 +149,8 @@ class Rs485Driver:
         Reads one encoder and returns a joint angle in radians.
         The first successful read for each encoder is treated as 0.0 rad.
         """
+        
+        read_start_time = time.time()
         for attempt in range(self.retries):
             try:
                 return self._read_encoder_once(addr)
@@ -165,12 +167,17 @@ class Rs485Driver:
                     )
                     self._last_error_log[addr] = now
                 return self._last_positions.get(addr, 0.0)
+        read_end_time = time.time()
+        print("read time: ", read_end_time - read_start_time)
         return self._last_positions.get(addr, 0.0)
 
     def read_all_joints(self) -> dict:
         joints: List[float] = []
         for addr in range(1, 5):
+            r_start = time.time()
             joints.append(self.read_encoder(addr))
+            r_end = time.time()
+            print(f"addr: {addr} joint read time: {r_end-r_start}")
         return {"joints": joints}
     
     def _read_exact(self, n: int) -> bytes:
@@ -275,6 +282,5 @@ class Rs485Driver:
                 "status": status,
                 "pulses": pulses,
             }
-        time.sleep(0.0)
         print("\n")
         return results

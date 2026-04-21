@@ -49,11 +49,14 @@ class Rocket:
     
     def _run_state_loop(self, imu, context):
         while not self._state_stream_stopping:
+            imu_start_time = time.time()
             data = imu.read_all()
             context.latest_state.update_from_imu(data)
             data = self.stepper_driver.read_all_joints()
             context.latest_state.update_from_encoders(data)
             context.event.set()
+            imu_end_time = time.time()
+            print("imu time: ", imu_end_time - imu_start_time)
             time.sleep(0.005)
         
     
@@ -92,7 +95,10 @@ class Rocket:
 
         while not self._command_stream_stopping:
             if timing_policy():
+                policy_start_time = time.time()
                 cmd = command_policy()
+                policy_end_time = time.time()
+                print("policy time: ", policy_end_time - policy_start_time)
                 joint_angles = cmd.joint_angles
                 if len(joint_angles) < 6:
                     self.logger.warning("command policy returned too few joint angles")
@@ -113,6 +119,7 @@ class Rocket:
                 self._started_streaming = True
                 print("Sending command:", scaled_joint_angles, "\n\n")
                 time.sleep(0.1)
+                print("time: ", time.time())
             else:
                 self.logger.warning("timing policy timeout")
                 continue

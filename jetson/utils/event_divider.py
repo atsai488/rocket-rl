@@ -18,6 +18,5 @@ class EventDivider:
 
             count += 1
             self._event.clear()
-            time.sleep(0.001)
 
         return True
