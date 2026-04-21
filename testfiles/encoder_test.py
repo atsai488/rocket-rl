@@ -2,6 +2,10 @@ import os
 import time
 import struct
 import serial
+from drivers.rs485 import Rs485Driver
+from rocket.rocket import JOINT_POS_MID, JOINT_SCALE
+
+STEPPER_ADDRS = [1, 2, 3, 4]
 
 PORT = os.getenv("RS485_PORT", "/dev/ttyUSB0")
 BAUDRATE = int(os.getenv("RS485_BAUDRATE", "256000"))
@@ -124,6 +128,31 @@ def build_stop_command(addr: int = ADDR, acc: int = 2) -> bytes:
     return bytes(frame)
 
 
+def oscillate(addr: int, ser: serial.Serial, speed: int = 10, delay: float = 0.02):
+    """Oscillate a single motor back and forth until KeyboardInterrupt."""
+    print(f"Oscillating addr={addr} — Ctrl+C to stop")
+    while True:
+        send_and_read_status(ser, build_move_command(addr=addr, speed=speed, direction=0))
+        time.sleep(delay)
+        send_and_read_status(ser, build_move_command(addr=addr, speed=speed, direction=1))
+        time.sleep(delay)
+
+
+def test_joint_limits(addr: int, driver: Rs485Driver, tolerance: float = 0.02, delay: float = 0.05):
+    """Drive a single stepper to its lower limit, then upper limit, then back to mid."""
+    i = STEPPER_ADDRS.index(addr)
+    mid   = JOINT_POS_MID[i + 2]
+    lower = mid - JOINT_SCALE[i + 2]
+    upper = mid + JOINT_SCALE[i + 2]
+    print(f"\naddr={addr}  lower={lower:.3f}  mid={mid:.3f}  upper={upper:.3f}")
+
+    for label, target in [("lower", lower), ("upper", upper), ("mid", mid)]:
+        print(f"  -> {label} ({target:.3f} rad)")
+        while abs(driver.read_encoder(addr) - target) > tolerance:
+            driver.send_joint_position({addr: target})
+            time.sleep(delay)
+
+
 def main():
     zero_offsets = {}
     target_addr = 0x04
@@ -137,14 +166,11 @@ def main():
         timeout=0.05,
     ) as ser:
         try:
-            while True:
-                # enable_status = send_and_read_status(ser, build_enable_command(addr=target_addr, enable=True))
-                move_status = send_and_read_status(ser, build_move_command(addr=target_addr, speed=10, direction=0))
-                time.sleep(0.02)
-                move_status = send_and_read_status(ser, build_move_command(addr=target_addr, speed=10, direction=1))
-                # print(f"Servo {target_addr}: enabled (status=0x{enable_status:02X}), move command sent at speed=1 (status=0x{move_status:02X})")
-                time.sleep(0.02)
-            move_status = send_and_read_status(ser, build_stop_command(addr=target_addr))
+            for addr in STEPPER_ADDRS:
+                oscillate(addr, ser)
+            # driver = Rs485Driver(ser=ser)
+            # for addr in STEPPER_ADDRS:
+                # test_joint_limits(addr, driver)
 
         except Exception as e:
             print(f"Servo {target_addr} command error: {e}")

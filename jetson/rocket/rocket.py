@@ -106,7 +106,7 @@ class Rocket:
 
 
                 self.stepper_driver.send_joint_position(
-                   {addr: scaled_joint_angles[addr] for addr in range(1, 5)})
+                   {addr: scaled_joint_angles[addr+1] for addr in range(1, 5)})
 
                 # self.servo_driver_right.hold(scaled_joint_angles[0])
                 # self.servo_driver_left.hold(scaled_joint_angles[1])
