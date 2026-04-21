@@ -41,19 +41,33 @@ class Rocket:
 
     def start_state_loop(self, imu, context):
         self._state_thread = Thread(
-            target=self._run_state_loop, args=(imu, context), daemon=True
+            target=self._run_imu_loop, args=(imu, context), daemon=True
+        )
+        self._encoder_read_1 = Thread(
+             target=self._run_encoder_loop, args=(1, context), daemon=True
+        )
+        self._encoder_read_2 = Thread(
+             target=self._run_encoder_loop, args=(2, context), daemon=True
+        )
+        self._encoder_read_3 = Thread(
+             target=self._run_encoder_loop, args=(3, context), daemon=True
+        )
+        self._encoder_read_4 = Thread(
+             target=self._run_encoder_loop, args=(4, context), daemon=True
         )
         self._state_thread.start()
     
+    def _run_encoder_loop(self, encoder_addr, context):
+        while not self._state_stream_stopping:
+            data = self.stepper_driver.read_encoder(encoder_addr)
+            context.update_from_single_encoder(encoder_addr, data)
+            time.sleep(0.005)
     
-    
-    def _run_state_loop(self, imu, context):
+    def _run_imu_loop(self, imu, context):
         while not self._state_stream_stopping:
             imu_start_time = time.time()
             data = imu.read_all()
             context.latest_state.update_from_imu(data)
-            data = self.stepper_driver.read_all_joints()
-            context.latest_state.update_from_encoders(data)
             context.event.set()
             imu_end_time = time.time()
             print("imu time: ", imu_end_time - imu_start_time)
