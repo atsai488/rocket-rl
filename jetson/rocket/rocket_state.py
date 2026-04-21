@@ -25,6 +25,7 @@ class RocketState:
     
     def update_from_single_encoder(self, addr, data):
         self.stepper_motor_angle[addr-1] = data
+        self._last_motor_angle = self.stepper_motor_angle.copy()
     
     def update_from_encoders(self, state_dict):
         now = time.perf_counter()
