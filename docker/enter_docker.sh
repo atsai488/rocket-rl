@@ -13,4 +13,4 @@ docker run -it \
 	-v /sys:/sys:ro \
 	-v "${REPO_ROOT}:/rocket"\
 	rocket \
-	python3 rocket_rl.py policies/rocket_direct.onnx
+	# python3 rocket_rl.py policies/rocket_direct.onnx

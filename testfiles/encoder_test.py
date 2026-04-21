@@ -5,7 +5,7 @@ import serial
 from drivers.rs485 import Rs485Driver
 from rocket.rocket import JOINT_POS_MID, JOINT_SCALE
 
-STEPPER_ADDRS = [1, 2, 3, 4]
+STEPPER_ADDRS = [2]
 
 PORT = os.getenv("RS485_PORT", "/dev/ttyUSB0")
 BAUDRATE = int(os.getenv("RS485_BAUDRATE", "256000"))
@@ -131,7 +131,7 @@ def build_stop_command(addr: int = ADDR, acc: int = 2) -> bytes:
 def oscillate(addr: int, ser: serial.Serial, speed: int = 10, delay: float = 0.02):
     """Oscillate a single motor back and forth until KeyboardInterrupt."""
     print(f"Oscillating addr={addr} — Ctrl+C to stop")
-    while True:
+    for _ in range(10):
         send_and_read_status(ser, build_move_command(addr=addr, speed=speed, direction=0))
         time.sleep(delay)
         send_and_read_status(ser, build_move_command(addr=addr, speed=speed, direction=1))
@@ -150,6 +150,7 @@ def test_joint_limits(addr: int, driver: Rs485Driver, tolerance: float = 0.02, d
         print(f"  -> {label} ({target:.3f} rad)")
         while abs(driver.read_encoder(addr) - target) > tolerance:
             driver.send_joint_position({addr: target})
+            print(f"  addr={addr} pos={driver.read_encoder(addr):.3f}")
             time.sleep(delay)
 
 
@@ -167,10 +168,11 @@ def main():
     ) as ser:
         try:
             for addr in STEPPER_ADDRS:
-                oscillate(addr, ser)
-            # driver = Rs485Driver(ser=ser)
-            # for addr in STEPPER_ADDRS:
-                # test_joint_limits(addr, driver)
+                # oscillate(addr, ser)
+                time.sleep(0.002)
+            driver = Rs485Driver(ser=ser)
+            for addr in STEPPER_ADDRS:
+                test_joint_limits(addr, driver)
 
         except Exception as e:
             print(f"Servo {target_addr} command error: {e}")
