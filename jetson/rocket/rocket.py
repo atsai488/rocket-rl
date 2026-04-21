@@ -66,14 +66,12 @@ class Rocket:
         while not self._state_stream_stopping:
             data = self.stepper_driver.read_encoder(encoder_addr)
             context.latest_state.update_from_single_encoder(encoder_addr, data)
-            time.sleep(0.005)
     
     def _run_imu_loop(self, imu, context):
         while not self._state_stream_stopping:
             data = imu.read_all()
             context.latest_state.update_from_imu(data)
             context.event.set()
-            time.sleep(0.005)
         
     
     def start_command_stream(self, command_policy, timing_policy, atmega):
@@ -134,7 +132,7 @@ class Rocket:
                 print("Sending command:", scaled_joint_angles, "\n\n")
                 time.sleep(0.1)
                 imu_end_time = time.time()
-                print("imu time: ", imu_end_time - imu_start_time)
+                print("time: ", imu_end_time - imu_start_time)
             else:
                 self.logger.warning("timing policy timeout")
                 continue
