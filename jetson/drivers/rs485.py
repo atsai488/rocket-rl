@@ -261,6 +261,7 @@ class Rs485Driver:
         position, then sent as a motor move command.
         """
         results = {}
+        addr_times = {}
 
         for addr, target_rad in joints.items():
             if not isinstance(addr, int):
@@ -274,8 +275,8 @@ class Rs485Driver:
                 direction = 1 if delta_rad <= 0 else 0
             else:
                 direction = 1 if delta_rad >= 0 else 0
-            print(f"{addr}: delta rad: {delta_rad}, pulses: {pulses}", end="\n")
             # input("Move one!")
+            t0 = time.time()
             status = self.move_position(
                 addr=addr,
                 pulses=pulses,
@@ -283,10 +284,13 @@ class Rs485Driver:
                 acc=2,
                 direction=direction,
             )
+            addr_times[addr] = time.time() - t0
             results[addr] = {
                 "enabled": True,
                 "status": status,
                 "pulses": pulses,
             }
-        print("\n")
+        times_str = "  ".join(f"addr{a}={t:.4f}s" for a, t in addr_times.items())
+        avg = sum(addr_times.values()) / len(addr_times) if addr_times else 0
+        print(f"[SEND] {times_str}  avg={avg:.4f}s  total={sum(addr_times.values()):.4f}s")
         return results
