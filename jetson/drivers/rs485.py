@@ -189,16 +189,20 @@ class Rs485Driver:
             buf.extend(chunk)
         return bytes(buf)
 
-    def _send_frame(self, frame: bytes, expect_len: int) -> bytes:
+    def _send_frame(self, frame: bytes, expect_len: int, check_ack: bool = True) -> bytes:
         frame = self.append_crc(frame)
         with self._serial_lock:
             self.serial.reset_input_buffer()
             self.serial.reset_output_buffer()
             self.serial.write(frame)
             self.serial.flush()
-            if TURNAROUND_DELAY_S > 0:
-                time.sleep(TURNAROUND_DELAY_S)
-            return self._read_exact(expect_len)
+
+            if check_ack: 
+                if TURNAROUND_DELAY_S > 0:
+                    time.sleep(TURNAROUND_DELAY_S)
+                return self._read_exact(expect_len)
+            else: 
+                return b""
 
 
     def move_position(
@@ -208,6 +212,7 @@ class Rs485Driver:
         speed: int = 0x0280,
         acc: int = 2,
         direction: int = 0,
+        check_ack: bool = False,
     ) -> int:
         """
         Manual 6.4:
@@ -235,7 +240,7 @@ class Rs485Driver:
         pulse_bytes = int(pulses).to_bytes(4, byteorder="big", signed=False)
 
         frame = bytes([0xFA, addr & 0xFF, 0xFD, byte4, byte5, acc & 0xFF]) + pulse_bytes
-        resp = self._send_frame(frame, 4)
+        resp = self._send_frame(frame, 4, check_ack=check_ack)
 
         # if len(resp) != 4:
         #     raise TimeoutError(f"Short move response from motor {addr}: {resp.hex()}")
