@@ -36,6 +36,7 @@ class Rs485Driver:
         self.timeout = timeout
         self.retries = max(1, retries)
         self._serial_lock = RLock()
+        self._send_priority = False
         self._last_error_log = {addr: 0.0 for addr in range(1, 5)}
         self.serial = ser or serial.Serial(
             port=PORT,
@@ -116,6 +117,8 @@ class Rs485Driver:
 
     def _read_encoder_once(self, addr: int) -> float:
         cmd = self.build_read_cmd(addr)
+        while self._send_priority:
+            time.sleep(0.001)
         with self._serial_lock:
             self.serial.reset_input_buffer()
             self.serial.reset_output_buffer()
@@ -262,6 +265,7 @@ class Rs485Driver:
         """
         results = {}
         addr_times = {}
+        self._send_priority = True
 
         for addr, target_rad in joints.items():
             if not isinstance(addr, int):
@@ -290,6 +294,7 @@ class Rs485Driver:
                 "status": status,
                 "pulses": pulses,
             }
+        self._send_priority = False
         times_str = "  ".join(f"addr{a}={t:.4f}s" for a, t in addr_times.items())
         avg = sum(addr_times.values()) / len(addr_times) if addr_times else 0
         print(f"[SEND] {times_str}  avg={avg:.4f}s  total={sum(addr_times.values()):.4f}s")
