@@ -117,11 +117,11 @@ class Rs485Driver:
 
     def _read_encoder_once(self, addr: int) -> float:
         cmd = self.build_read_cmd(addr)
-        while self._send_priority:
-            time.sleep(0.001)
         lock_wait_start = time.time()
-        with self._serial_lock:
-            lock_acquired = time.time()
+        while self._send_priority or not self._serial_lock.acquire(blocking=False):
+            time.sleep(0.001)
+        lock_acquired = time.time()
+        try:
             self.serial.reset_input_buffer()
             self.serial.reset_output_buffer()
             self.serial.write(cmd)
@@ -137,6 +137,8 @@ class Rs485Driver:
                 raise TimeoutError(f"Short response from encoder {addr}: {resp.hex()}")
 
             carry, value = self.parse_encoder_response(addr, resp)
+        finally:
+            self._serial_lock.release()
         position_counts = carry * COUNTS_PER_REV + value
 
         zero_counts = self._zero_position_counts[addr]

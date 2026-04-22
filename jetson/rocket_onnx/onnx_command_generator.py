@@ -37,7 +37,7 @@ class RocketOnnxPositionController:
     def __call__(self):
         # Get latest observation safely
         obs = self.state.latest_state.to_observation()
-        print("Motor positions", obs[0:7])
+        print("Stepper motor positions", obs[0:4])
         model_input = np.array([obs], dtype=np.float32)
         output = self.session.run(None, {self.input_name: model_input})[0][0]
 

@@ -164,7 +164,7 @@ class Rocket:
                 totals["send"]   += send_end - send_start
                 totals["sleep"]  += sleep_end - sleep_start
                 totals["total"]  += end_time - start_time
-                if loop_count % 10 == 0:
+                if loop_count % 5 == 0:
                     print(f"\n--- AVERAGES over {loop_count} loops ---")
                     for k, v in totals.items():
                         print(f"  {k:<8}: {v / loop_count:.6f}s")
