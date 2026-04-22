@@ -109,6 +109,8 @@ class Rocket:
     
     def _command_snder(self, command_policy, timing_policy, atmega):
         """Send commands over i2c to the robot."""
+        loop_count = 0
+        totals = {"policy": 0.0, "send": 0.0, "sleep": 0.0, "total": 0.0}
 
         while not self._command_stream_stopping:
             if timing_policy():
@@ -153,6 +155,17 @@ class Rocket:
                 end_time = time.time()
                 print(f"[LOOP END]     t={end_time:.6f}  dt={end_time - start_time:.6f}s  (total)")
                 print("time: ", end_time - start_time)
+
+                loop_count += 1
+                totals["policy"] += policy_end - policy_start
+                totals["send"]   += send_end - send_start
+                totals["sleep"]  += sleep_end - sleep_start
+                totals["total"]  += end_time - start_time
+                if loop_count % 10 == 0:
+                    print(f"\n--- AVERAGES over {loop_count} loops ---")
+                    for k, v in totals.items():
+                        print(f"  {k:<8}: {v / loop_count:.6f}s")
+                    print("---\n")
             else:
                 self.logger.warning("timing policy timeout")
                 continue
