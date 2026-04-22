@@ -112,8 +112,15 @@ class Rocket:
 
         while not self._command_stream_stopping:
             if timing_policy():
-                imu_start_time = time.time()
+                start_time = time.time()
+                print(f"[LOOP START]   t={start_time:.6f}")
+
+                policy_start = time.time()
+                print(f"[POLICY START] t={policy_start:.6f}")
                 cmd = command_policy()
+                policy_end = time.time()
+                print(f"[POLICY END]   t={policy_end:.6f}  dt={policy_end - policy_start:.6f}s")
+
                 joint_angles = cmd.joint_angles
                 if len(joint_angles) < 6:
                     self.logger.warning("command policy returned too few joint angles")
@@ -124,18 +131,28 @@ class Rocket:
                     max(mid - scale, min(mid + angle * scale, mid + scale))
                     for mid, angle, scale in zip(JOINT_POS_MID, joint_angles, JOINT_SCALE)
                 ]
-
-
+                
+                send_start = time.time()
+                print(f"[SEND START]   t={send_start:.6f}")
                 self.stepper_driver.send_joint_position(
                    {addr: scaled_joint_angles[addr+1] for addr in range(1, 5)})
+                send_end = time.time()
+                print(f"[SEND END]     t={send_end:.6f}  dt={send_end - send_start:.6f}s")
 
                 # self.servo_driver_right.hold(scaled_joint_angles[0])
                 # self.servo_driver_left.hold(scaled_joint_angles[1])
                 self._started_streaming = True
                 print("Sending command:", scaled_joint_angles, "\n\n")
+
+                sleep_start = time.time()
+                print(f"[SLEEP START]  t={sleep_start:.6f}")
                 time.sleep(0.1)
-                imu_end_time = time.time()
-                print("time: ", imu_end_time - imu_start_time)
+                sleep_end = time.time()
+                print(f"[SLEEP END]    t={sleep_end:.6f}  dt={sleep_end - sleep_start:.6f}s")
+
+                end_time = time.time()
+                print(f"[LOOP END]     t={end_time:.6f}  dt={end_time - start_time:.6f}s  (total)")
+                print("time: ", end_time - start_time)
             else:
                 self.logger.warning("timing policy timeout")
                 continue
