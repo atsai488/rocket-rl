@@ -1,0 +1,6 @@
+--- AVERAGES over 25 loops ---                                          
+  policy  : 0.003624s                                                   
+  send    : 0.031180s                                                   
+  sleep   : 0.100684s                                                   
+  total   : 0.138037s                                                   
+---

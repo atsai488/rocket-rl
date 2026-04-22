@@ -264,7 +264,7 @@ class Rs485Driver:
 
         return resp[3]
 
-    def send_joint_position(self, joints: dict):
+    def send_joint_position(self, joints: dict, max_pulses: int = 20):
         """
         Expected input examples:
           {1: 0.1, 2: -0.2, 3: 1.57, 4: 0.0}
@@ -284,7 +284,7 @@ class Rs485Driver:
             current_rad = self._last_positions.get(addr, 0.0)
             delta_rad = target_rad - current_rad
             pulses = int(round((abs(delta_rad) / (2 * math.pi)) * PULSES_PER_REV) * GEAR_RATIO)
-            pulses = min(pulses, 20)
+            pulses = min(pulses, max_pulses)
             if (addr == 0x01 or addr == 0x04):
                 direction = 1 if delta_rad <= 0 else 0
             else:
@@ -314,7 +314,7 @@ class Rs485Driver:
         """Gradually move all joints to ZERO_GRAVITY_POS before power off."""
         print("[SHUTDOWN] Moving to zero gravity position...")
         while True:
-            self.send_joint_position(ZERO_GRAVITY_POS)
+            self.send_joint_position(ZERO_GRAVITY_POS, max_pulses=10)
             if all(
                 abs(self._last_positions.get(addr, 0.0) - target) < tolerance
                 for addr, target in ZERO_GRAVITY_POS.items()
