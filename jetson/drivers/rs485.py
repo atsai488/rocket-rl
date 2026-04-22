@@ -124,15 +124,18 @@ class Rs485Driver:
         try:
             self.serial.reset_input_buffer()
             self.serial.reset_output_buffer()
+            write_start = time.time()
             self.serial.write(cmd)
             self.serial.flush()
+            write_done = time.time()
             # Some RS485 adapters need a short TX->RX turnaround window.
             if TURNAROUND_DELAY_S > 0:
                 time.sleep(TURNAROUND_DELAY_S)
 
+            read_exact_start = time.time()
             resp = self.read_exact(self.serial, 10)
             read_done = time.time()
-            print(f"[ENC {addr}] lock_wait={lock_acquired - lock_wait_start:.4f}s  read={read_done - lock_acquired:.4f}s")
+            print(f"[ENC {addr}] lock_wait={lock_acquired - lock_wait_start:.4f}s  write={write_done - write_start:.4f}s  read_exact={read_done - read_exact_start:.4f}s  total={read_done - lock_acquired:.4f}s")
             if len(resp) != 10:
                 raise TimeoutError(f"Short response from encoder {addr}: {resp.hex()}")
 
