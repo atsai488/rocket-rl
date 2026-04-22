@@ -57,6 +57,8 @@ def main():
 
     finally:
         print("[INFO] Shutting down...")
+        rocket.stop_command_stream()
+        rocket.stepper_driver.shutdown()
         atmega.close()
 
         print("[INFO] All stopped.")

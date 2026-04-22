@@ -21,6 +21,7 @@ COUNTS_PER_REV = 16384
 PULSES_PER_REV = 200
 RADIANS_PER_COUNT = 2 * math.pi / COUNTS_PER_REV
 GEAR_RATIO = 5
+ZERO_GRAVITY_POS = {1: -0.35, 2: -0.35, 3: -0.35, 4: -0.35}
 
 class Rs485Driver:
     def __init__(
@@ -308,3 +309,16 @@ class Rs485Driver:
         avg = sum(addr_times.values()) / len(addr_times) if addr_times else 0
         print(f"[SEND] {times_str}  avg={avg:.4f}s  total={sum(addr_times.values()):.4f}s")
         return results
+
+    def shutdown(self, tolerance: float = 0.01, step_delay: float = 0.05):
+        """Gradually move all joints to ZERO_GRAVITY_POS before power off."""
+        print("[SHUTDOWN] Moving to zero gravity position...")
+        while True:
+            self.send_joint_position(ZERO_GRAVITY_POS)
+            if all(
+                abs(self._last_positions.get(addr, 0.0) - target) < tolerance
+                for addr, target in ZERO_GRAVITY_POS.items()
+            ):
+                break
+            time.sleep(step_delay)
+        print("[SHUTDOWN] Zero gravity position reached.")
