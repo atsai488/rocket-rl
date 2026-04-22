@@ -9,6 +9,7 @@ from drivers.servo import ServoController
 
 JOINT_POS_MID = [-0.0873, -0.0873, -0.0872, -0.0872, -0.0436, -0.0436]
 JOINT_SCALE = [0.1745, 0.1745, 0.2618, 0.2618, 0.3054, 0.3054]
+ACTION_DELAY_S = 0.1
 
 class Rocket:
     def __init__(self, config) -> None:
@@ -151,7 +152,7 @@ class Rocket:
 
                 sleep_start = time.time()
                 print(f"[SLEEP START]  t={sleep_start:.6f}")
-                time.sleep(0.1)
+                time.sleep(ACTION_DELAY_S)
                 sleep_end = time.time()
                 print(f"[SLEEP END]    t={sleep_end:.6f}  dt={sleep_end - sleep_start:.6f}s")
 
