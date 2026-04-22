@@ -64,9 +64,12 @@ class Rocket:
     
     def _run_encoder_loop(self, encoder_addr, context):
         while not self._state_stream_stopping:
+            enc_start = time.time()
             data = self.stepper_driver.read_encoder(encoder_addr)
             context.latest_state.update_from_single_encoder(encoder_addr, data)
-    
+            enc_end = time.time()
+            print(f"[ENCODER {encoder_addr}] t={enc_end:.6f}  dt={enc_end - enc_start:.6f}s")
+
     def _run_imu_loop(self, imu, context):
         while not self._state_stream_stopping:
             start = time.time()
@@ -74,7 +77,7 @@ class Rocket:
             context.latest_state.update_from_imu(data)
             context.event.set()
             end = time.time()
-            print("imu time:", end-start)
+            print(f"[IMU]       t={end:.6f}  dt={end - start:.6f}s")
         
     
     def start_command_stream(self, command_policy, timing_policy, atmega):
