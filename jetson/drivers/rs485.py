@@ -119,7 +119,9 @@ class Rs485Driver:
         cmd = self.build_read_cmd(addr)
         while self._send_priority:
             time.sleep(0.001)
+        lock_wait_start = time.time()
         with self._serial_lock:
+            lock_acquired = time.time()
             self.serial.reset_input_buffer()
             self.serial.reset_output_buffer()
             self.serial.write(cmd)
@@ -129,6 +131,8 @@ class Rs485Driver:
                 time.sleep(TURNAROUND_DELAY_S)
 
             resp = self.read_exact(self.serial, 10)
+            read_done = time.time()
+            print(f"[ENC {addr}] lock_wait={lock_acquired - lock_wait_start:.4f}s  read={read_done - lock_acquired:.4f}s")
             if len(resp) != 10:
                 raise TimeoutError(f"Short response from encoder {addr}: {resp.hex()}")
 
