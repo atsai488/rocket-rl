@@ -201,8 +201,9 @@ class Rs485Driver:
                 if TURNAROUND_DELAY_S > 0:
                     time.sleep(TURNAROUND_DELAY_S)
                 return self._read_exact(expect_len)
-            else: 
-                return b""
+            else:
+                # returns a mock ACK with status set to 1
+                return b"\x00\x00\x00\x01"
 
 
     def move_position(
