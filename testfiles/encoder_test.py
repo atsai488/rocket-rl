@@ -66,19 +66,35 @@ def parse_encoder_response(resp: bytes):
 
 
 def read_encoder(ser: serial.Serial, addr: int = ADDR):
-    ser.reset_input_buffer()
-    cmd = build_read_command(addr)
-    ser.write(cmd)
-    ser.flush()
+    max_attempts = 5
 
-    resp = read_exactly(ser, 10, timeout_s=0.5)
-    print(f"RESP addr={addr}:", resp.hex())
-    if len(resp) != 10:
-        raise TimeoutError(f"Incomplete response: {resp.hex()}")
-    if resp[1] != (addr & 0xFF):
-        raise ValueError(f"Response address mismatch: expected {addr}, got frame {resp.hex()}")
+    for attempt in range(max_attempts):
+        ser.reset_input_buffer()
+        cmd = build_read_command(addr)
+        ser.write(cmd)
+        ser.flush()
 
-    return parse_encoder_response(resp)
+        resp = read_exactly(ser, 10, timeout_s=0.5)
+        print(f"RESP addr={addr}:", resp.hex())
+        if len(resp) != 10:
+            if attempt < max_attempts - 1:
+                continue
+            raise TimeoutError(f"Incomplete response: {resp.hex()}")
+
+        if resp[2] == FUNC_MOVE_POSITION:
+            if attempt < max_attempts - 1:
+                print(f"Ignoring move-position frame for addr={addr}, retrying")
+                continue
+            raise ValueError(f"Only move-position frames received for addr {addr}: {resp.hex()}")
+
+        if resp[1] != (addr & 0xFF):
+            if attempt < max_attempts - 1:
+                continue
+            raise ValueError(f"Response address mismatch: expected {addr}, got frame {resp.hex()}")
+
+        return parse_encoder_response(resp)
+
+    raise TimeoutError(f"No valid encoder response for addr {addr}")
 
 
 def send_and_read_status(ser: serial.Serial, frame: bytes, timeout_s: float = 0.5) -> int:
