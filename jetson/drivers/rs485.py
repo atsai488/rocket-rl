@@ -269,36 +269,52 @@ class Rs485Driver:
         """
         results = {}
         addr_times = {}
+        burst_frames: list[bytes] = []
         self._send_priority = True
 
-        for addr, target_rad in joints.items():
-            if not isinstance(addr, int):
-                continue
+        try:
+            for addr, target_rad in joints.items():
+                if not isinstance(addr, int):
+                    continue
 
-            current_rad = self._last_positions.get(addr, 0.0)
-            delta_rad = target_rad - current_rad
-            pulses = int(round((abs(delta_rad) / (2 * math.pi)) * PULSES_PER_REV) * GEAR_RATIO)
-            pulses = min(pulses, max_pulses)
-            if (addr == 0x01 or addr == 0x04):
-                direction = 1 if delta_rad <= 0 else 0
-            else:
-                direction = 1 if delta_rad >= 0 else 0
-            # input("Move one!")
-            t0 = time.time()
-            status = self.move_position(
-                addr=addr,
-                pulses=pulses,
-                speed=10,
-                acc=2,
-                direction=direction,
-            )
-            addr_times[addr] = time.time() - t0
-            results[addr] = {
-                "enabled": True,
-                "status": status,
-                "pulses": pulses,
-            }
-        self._send_priority = False
+                current_rad = self._last_positions.get(addr, 0.0)
+                delta_rad = target_rad - current_rad
+                pulses = int(round((abs(delta_rad) / (2 * math.pi)) * PULSES_PER_REV) * GEAR_RATIO)
+                pulses = min(pulses, max_pulses)
+                if (addr == 0x01 or addr == 0x04):
+                    direction = 1 if delta_rad <= 0 else 0
+                else:
+                    direction = 1 if delta_rad >= 0 else 0
+
+                byte4 = ((direction & 0x01) << 7) | ((10 >> 8) & 0x0F)
+                byte5 = 10 & 0xFF
+                pulse_bytes = int(pulses).to_bytes(4, byteorder="big", signed=False)
+                frame = (
+                    bytes([0xFA, addr & 0xFF, 0xFD, byte4, byte5, 2 & 0xFF])
+                    + pulse_bytes
+                )
+                burst_frames.append(self.append_crc(frame))
+
+                # No ACK mode: keep status behavior compatible with previous mock ACK path.
+                addr_times[addr] = 0.0
+                results[addr] = {
+                    "enabled": True,
+                    "status": 1,
+                    "pulses": pulses,
+                }
+
+            if burst_frames:
+                t0 = time.time()
+                with self._serial_lock:
+                    self.serial.write(b"".join(burst_frames))
+                    self.serial.flush()
+                elapsed = time.time() - t0
+                share = elapsed / len(burst_frames)
+                for addr in results:
+                    addr_times[addr] = share
+        finally:
+            self._send_priority = False
+
         times_str = "  ".join(f"addr{a}={t:.4f}s" for a, t in addr_times.items())
         avg = sum(addr_times.values()) / len(addr_times) if addr_times else 0
         print(f"[SEND] {times_str}  avg={avg:.4f}s  total={sum(addr_times.values()):.4f}s")
