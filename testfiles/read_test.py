@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
+import argparse
 import math
 import os
 import serial
+import statistics
 import struct
 import time
 from threading import RLock
@@ -17,6 +19,7 @@ INTER_READ_DELAY_S = float(os.getenv("RS485_INTER_READ_DELAY_S", "0.0002"))
 PARITY = os.getenv("RS485_PARITY", "N").upper()
 STOPBITS = float(os.getenv("RS485_STOPBITS", "1"))
 ENDIAN = os.getenv("RS485_ENDIAN", ">")
+DEBUG_TIMING = os.getenv("RS485_DEBUG_TIMING", "0") == "1"
 COUNTS_PER_REV = 16384
 PULSES_PER_REV = 200
 RADIANS_PER_COUNT = 2 * math.pi / COUNTS_PER_REV
@@ -133,7 +136,13 @@ class Rs485Driver:
             read_exact_start = time.time()
             resp = self.read_exact(self.serial, 10)
             read_done = time.time()
-            print(f"[ENC {addr}] lock_wait={lock_acquired - lock_wait_start:.4f}s  write={write_done - write_start:.4f}s  read_exact={read_done - read_exact_start:.4f}s  total={read_done - lock_acquired:.4f}s")
+            if DEBUG_TIMING:
+                print(
+                    f"[ENC {addr}] lock_wait={lock_acquired - lock_wait_start:.4f}s  "
+                    f"write={write_done - write_start:.4f}s  "
+                    f"read_exact={read_done - read_exact_start:.4f}s  "
+                    f"total={read_done - lock_acquired:.4f}s"
+                )
             if len(resp) != 10:
                 raise TimeoutError(f"Short response from encoder {addr}: {resp.hex()}")
 
@@ -181,13 +190,10 @@ class Rs485Driver:
         print("read time: ", read_end_time - read_start_time)
         return self._last_positions.get(addr, 0.0)
 
-    def read_all_joints(self) -> dict:
+    def read_all_joints_serial(self) -> dict:
         joints: List[float] = []
         for addr in range(1, 5):
-            r_start = time.time()
             joints.append(self.read_encoder(addr))
-            r_end = time.time()
-            print(f"addr: {addr} joint read time: {r_end-r_start}")
         return {"joints": joints}
     
     def _read_exact(self, n: int) -> bytes:
@@ -214,7 +220,7 @@ class Rs485Driver:
             else:
                 # returns a mock ACK with status set to 1
                 return b"\x00\x00\x00\x01"
-    def read_all_joints(self) -> dict:
+    def read_all_joints_batch(self) -> dict:
         """
         Burst-send all 4 encoder query frames, then read all 40 bytes back
         in one shot. Eliminates per-encoder lock/flush/write overhead.
@@ -227,6 +233,8 @@ class Rs485Driver:
             self.serial.reset_output_buffer()
             self.serial.write(burst)
             self.serial.flush()
+            if TURNAROUND_DELAY_S > 0:
+                time.sleep(TURNAROUND_DELAY_S)
             raw = self.read_exact(self.serial, 40)  # 10 bytes × 4 encoders
 
         joints = []
@@ -258,6 +266,10 @@ class Rs485Driver:
                 joints.append(self._last_positions.get(addr, 0.0))
 
         return {"joints": joints}
+
+    def read_all_joints(self) -> dict:
+        """Default path used by the rest of the code: batch read."""
+        return self.read_all_joints_batch()
     def move_position(
         self,
         addr: int,
@@ -361,3 +373,112 @@ class Rs485Driver:
                 break
             time.sleep(step_delay)
         print("[SHUTDOWN] Zero gravity position reached.")
+
+
+def _summarize_times(label: str, samples: List[float]) -> None:
+    if not samples:
+        print(f"{label}: no samples")
+        return
+
+    mean_s = statistics.mean(samples)
+    median_s = statistics.median(samples)
+    min_s = min(samples)
+    max_s = max(samples)
+    hz = (1.0 / mean_s) if mean_s > 0 else 0.0
+    print(
+        f"{label}: n={len(samples)}  mean={mean_s*1000:.3f} ms  "
+        f"median={median_s*1000:.3f} ms  min={min_s*1000:.3f} ms  "
+        f"max={max_s*1000:.3f} ms  rate={hz:.2f} Hz"
+    )
+
+
+def _benchmark_mode(
+    driver: Rs485Driver,
+    mode: str,
+    iterations: int,
+    warmup: int,
+    delay_s: float,
+) -> List[float]:
+    fn = driver.read_all_joints_batch if mode == "batch" else driver.read_all_joints_serial
+
+    for _ in range(max(0, warmup)):
+        fn()
+        if delay_s > 0:
+            time.sleep(delay_s)
+
+    samples: List[float] = []
+    for _ in range(max(1, iterations)):
+        t0 = time.perf_counter()
+        fn()
+        samples.append(time.perf_counter() - t0)
+        if delay_s > 0:
+            time.sleep(delay_s)
+
+    return samples
+
+
+def main() -> None:
+    parser = argparse.ArgumentParser(
+        description="Benchmark RS485 encoder reads: serial-per-encoder vs batch burst"
+    )
+    parser.add_argument(
+        "--mode",
+        choices=["serial", "batch", "both"],
+        default="both",
+        help="Which read method to benchmark",
+    )
+    parser.add_argument(
+        "--iterations",
+        type=int,
+        default=100,
+        help="Measured iterations per mode",
+    )
+    parser.add_argument(
+        "--warmup",
+        type=int,
+        default=10,
+        help="Unmeasured warmup iterations per mode",
+    )
+    parser.add_argument(
+        "--delay",
+        type=float,
+        default=0.0,
+        help="Sleep between iterations in seconds",
+    )
+    args = parser.parse_args()
+
+    with Rs485Driver() as driver:
+        if args.mode in ("serial", "both"):
+            serial_samples = _benchmark_mode(
+                driver,
+                mode="serial",
+                iterations=args.iterations,
+                warmup=args.warmup,
+                delay_s=args.delay,
+            )
+            _summarize_times("serial", serial_samples)
+        else:
+            serial_samples = []
+
+        if args.mode in ("batch", "both"):
+            batch_samples = _benchmark_mode(
+                driver,
+                mode="batch",
+                iterations=args.iterations,
+                warmup=args.warmup,
+                delay_s=args.delay,
+            )
+            _summarize_times("batch", batch_samples)
+        else:
+            batch_samples = []
+
+    if serial_samples and batch_samples:
+        serial_mean = statistics.mean(serial_samples)
+        batch_mean = statistics.mean(batch_samples)
+        if batch_mean > 0:
+            speedup = serial_mean / batch_mean
+            print(f"speedup (serial/batch): {speedup:.2f}x")
+
+
+if __name__ == "__main__":
+    main()
