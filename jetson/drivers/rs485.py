@@ -82,7 +82,7 @@ class Rs485Driver:
         return bytes(frame)
 
     @staticmethod
-    def read_exact(ser: serial.Serial, n: int, timeout_s: float = 0.003) -> bytes:
+    def read_exact(ser: serial.Serial, n: int, timeout_s: float = 0.03) -> bytes:
         buf = bytearray()
         deadline = time.monotonic() + timeout_s
         while len(buf) < n:
