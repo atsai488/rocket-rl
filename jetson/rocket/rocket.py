@@ -141,7 +141,7 @@ class Rocket:
                 send_start = time.time()
                 print(f"[SEND START]   t={send_start:.6f}")
                 self.stepper_driver.send_joint_position(
-                   {addr: scaled_joint_angles[addr+1] for addr in range(1, 5)}, 30)
+                   {addr: scaled_joint_angles[addr+1] for addr in range(1, 5)}, 20)
                 send_end = time.time()
                 print(f"[SEND END]     t={send_end:.6f}  dt={send_end - send_start:.6f}s")
 
