@@ -264,7 +264,7 @@ class Rs485Driver:
 
         return resp[3]
 
-    def send_joint_position(self, joints: dict, max_pulses: int = 20):
+    def send_joint_position(self, joints: dict, max_pulses: int = 10):
         """
         Expected input examples:
           {1: 0.1, 2: -0.2, 3: 1.57, 4: 0.0}
@@ -285,6 +285,8 @@ class Rs485Driver:
             delta_rad = target_rad - current_rad
             pulses = int(round((abs(delta_rad) / (2 * math.pi)) * PULSES_PER_REV) * GEAR_RATIO)
             pulses = min(pulses, max_pulses)
+            print(f"[MOTOR {addr}] delta_rad={delta_rad:.4f}  pulses={pulses}")
+
             if (addr == 0x01 or addr == 0x04):
                 direction = 1 if delta_rad <= 0 else 0
             else:

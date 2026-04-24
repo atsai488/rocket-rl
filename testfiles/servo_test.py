@@ -75,7 +75,7 @@ def main() -> None:
     gpio_mode = os.getenv("SERVO_GPIO_MODE", "BOARD").upper()
     hold_s = float(os.getenv("SERVO_HOLD_S", "5.0"))
     start_deg = float(os.getenv("SERVO_START_DEG", "0.0"))
-    target_deg = float(os.getenv("SERVO_TARGET_DEG", "15.0"))
+    target_deg = float(os.getenv("SERVO_TARGET_DEG", "90.0"))
     settle_s = float(os.getenv("SERVO_SETTLE_S", "1.0"))
     start_rad = math.radians(start_deg)
     target_rad = math.radians(target_deg)

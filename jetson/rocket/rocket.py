@@ -9,7 +9,7 @@ from drivers.servo import ServoController
 
 JOINT_POS_MID = [-0.0873, -0.0873, -0.0872, -0.0872, -0.0436, -0.0436]
 JOINT_SCALE = [0.1745, 0.1745, 0.2618, 0.2618, 0.3054, 0.3054]
-ACTION_DELAY_S = 0.1
+ACTION_DELAY_S = 0.05
 
 class Rocket:
     def __init__(self, config) -> None:
@@ -141,7 +141,7 @@ class Rocket:
                 send_start = time.time()
                 print(f"[SEND START]   t={send_start:.6f}")
                 self.stepper_driver.send_joint_position(
-                   {addr: scaled_joint_angles[addr+1] for addr in range(1, 5)})
+                   {addr: scaled_joint_angles[addr+1] for addr in range(1, 5)}, 30)
                 send_end = time.time()
                 print(f"[SEND END]     t={send_end:.6f}  dt={send_end - send_start:.6f}s")
 

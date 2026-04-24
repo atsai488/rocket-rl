@@ -5,7 +5,8 @@ import serial
 from drivers.rs485 import Rs485Driver
 from rocket.rocket import JOINT_POS_MID, JOINT_SCALE
 
-STEPPER_ADDRS = [2]
+STEPPER_ADDRS = [3]
+
 
 PORT = os.getenv("RS485_PORT", "/dev/ttyUSB0")
 BAUDRATE = int(os.getenv("RS485_BAUDRATE", "256000"))
@@ -168,10 +169,11 @@ def main():
     ) as ser:
         try:
             for addr in STEPPER_ADDRS:
-                # oscillate(addr, ser)
+                oscillate(addr, ser)
                 time.sleep(0.002)
             driver = Rs485Driver(ser=ser)
             for addr in STEPPER_ADDRS:
+                time.sleep(0.002)
                 test_joint_limits(addr, driver)
 
         except Exception as e:
