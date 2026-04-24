@@ -190,6 +190,51 @@ class Rs485Driver:
         print("read time: ", read_end_time - read_start_time)
         return self._last_positions.get(addr, 0.0)
 
+    def _counts_to_radians(self, addr: int, carry: int, value: int) -> float:
+        position_counts = carry * COUNTS_PER_REV + value
+
+        zero_counts = self._zero_position_counts[addr]
+        if zero_counts is None:
+            zero_counts = position_counts
+            self._zero_position_counts[addr] = zero_counts
+
+        relative_counts = position_counts - zero_counts
+        radians = relative_counts * RADIANS_PER_COUNT / GEAR_RATIO
+        if addr in (0x01, 0x04):
+            radians *= -1
+        self._last_positions[addr] = radians
+        return radians
+
+    def _parse_burst_encoder_responses(self, raw: bytes, expected_addrs: set[int]) -> dict[int, float]:
+        found: dict[int, float] = {}
+        i = 0
+        max_i = len(raw) - 10
+
+        while i <= max_i and len(found) < len(expected_addrs):
+            if raw[i] != 0xFB:
+                i += 1
+                continue
+
+            frame = raw[i : i + 10]
+            if len(frame) < 10:
+                break
+
+            addr = frame[1]
+            if frame[2] != 0x30 or addr not in expected_addrs:
+                i += 1
+                continue
+
+            try:
+                carry, value = self.parse_encoder_response(addr, frame)
+            except Exception:
+                i += 1
+                continue
+
+            found[addr] = self._counts_to_radians(addr, carry, value)
+            i += 10
+
+        return found
+
     def read_all_joints_serial(self) -> dict:
         joints: List[float] = []
         for addr in range(1, 5):
@@ -226,6 +271,7 @@ class Rs485Driver:
         in one shot. Eliminates per-encoder lock/flush/write overhead.
         """
         addrs = [1, 2, 3, 4]
+        expected = set(addrs)
         burst = b"".join(self.build_read_cmd(a) for a in addrs)  # 16 bytes total
 
         with self._serial_lock:
@@ -237,31 +283,15 @@ class Rs485Driver:
                 time.sleep(TURNAROUND_DELAY_S)
             raw = self.read_exact(self.serial, 40)  # 10 bytes × 4 encoders
 
+        parsed = self._parse_burst_encoder_responses(raw, expected)
         joints = []
-        for i, addr in enumerate(addrs):
-            chunk = raw[i * 10 : (i + 1) * 10]
-            try:
-                if len(chunk) != 10:
-                    raise ValueError(f"Short chunk for encoder {addr}: {chunk.hex()}")
-                carry, value = self.parse_encoder_response(addr, chunk)
-                position_counts = carry * COUNTS_PER_REV + value
-
-                zero_counts = self._zero_position_counts[addr]
-                if zero_counts is None:
-                    zero_counts = position_counts
-                    self._zero_position_counts[addr] = zero_counts
-
-                relative_counts = position_counts - zero_counts
-                radians = relative_counts * RADIANS_PER_COUNT / GEAR_RATIO
-                if addr in (0x01, 0x04):
-                    radians *= -1
-                self._last_positions[addr] = radians
-                joints.append(radians)
-
-            except Exception as exc:
+        for addr in addrs:
+            if addr in parsed:
+                joints.append(parsed[addr])
+            else:
                 now = time.monotonic()
                 if now - self._last_error_log[addr] > 1.0:
-                    print(f"Error parsing encoder {addr}: {exc}")
+                    print(f"Missing/invalid burst frame for encoder {addr}: {raw.hex()}")
                     self._last_error_log[addr] = now
                 joints.append(self._last_positions.get(addr, 0.0))
 
