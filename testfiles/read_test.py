@@ -12,10 +12,11 @@ from typing import List, Optional
 
 PORT = os.getenv("RS485_PORT", "/dev/ttyUSB0")
 BAUDRATE = int(os.getenv("RS485_BAUDRATE", "256000"))
-TIMEOUT = float(os.getenv("RS485_TIMEOUT", "0.1"))
 READ_RETRIES = int(os.getenv("RS485_READ_RETRIES", "1"))
-TURNAROUND_DELAY_S = float(os.getenv("RS485_TURNAROUND_DELAY_S", "0.03"))
-INTER_READ_DELAY_S = float(os.getenv("RS485_INTER_READ_DELAY_S", "0.0002"))
+# Change these values at the top of your script
+TIMEOUT = float(os.getenv("RS485_TIMEOUT", "0.01"))             # Reduced from 0.1 to 10ms
+TURNAROUND_DELAY_S = float(os.getenv("RS485_TURNAROUND_DELAY_S", "0.0")) # Set to 0.0
+INTER_READ_DELAY_S = float(os.getenv("RS485_INTER_READ_DELAY_S", "0.0")) # Set to 0.0
 PARITY = os.getenv("RS485_PARITY", "N").upper()
 STOPBITS = float(os.getenv("RS485_STOPBITS", "1"))
 ENDIAN = os.getenv("RS485_ENDIAN", ">")
@@ -126,8 +127,6 @@ class Rs485Driver:
             time.sleep(0.001)
         lock_acquired = time.time()
         try:
-            self.serial.reset_input_buffer()
-            self.serial.reset_output_buffer()
             write_start = time.time()
             self.serial.write(cmd)
             self.serial.flush()
@@ -253,14 +252,10 @@ class Rs485Driver:
     def _send_frame(self, frame: bytes, expect_len: int, check_ack: bool = True) -> bytes:
         frame = self.append_crc(frame)
         with self._serial_lock:
-            self.serial.reset_input_buffer()
-            self.serial.reset_output_buffer()
             self.serial.write(frame)
             self.serial.flush()
 
             if check_ack: 
-                if TURNAROUND_DELAY_S > 0:
-                    time.sleep(TURNAROUND_DELAY_S)
                 return self._read_exact(expect_len)
             else:
                 # returns a mock ACK with status set to 1
@@ -275,8 +270,6 @@ class Rs485Driver:
         burst = b"".join(self.build_read_cmd(a) for a in addrs)  # 16 bytes total
 
         with self._serial_lock:
-            self.serial.reset_input_buffer()
-            self.serial.reset_output_buffer()
             self.serial.write(burst)
             self.serial.flush()
             if TURNAROUND_DELAY_S > 0:
