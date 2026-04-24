@@ -7,10 +7,10 @@ import time
 from drivers.rs485 import Rs485Driver
 from drivers.servo import ServoController
 
-READ_ENCODER_EVERY_N = 30
+READ_ENCODER_EVERY_N = 10
 JOINT_POS_MID = [-0.0873, -0.0873, -0.0872, -0.0872, -0.0436, -0.0436]
 JOINT_SCALE = [0.1745, 0.1745, 0.2618, 0.2618, 0.3054, 0.3054]
-ACTION_DELAY_S = 0.05
+ACTION_DELAY_S = 0.03
 
 class Rocket:
     def __init__(self, config) -> None:
