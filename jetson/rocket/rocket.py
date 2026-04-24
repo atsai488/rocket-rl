@@ -1,4 +1,4 @@
-from threading import Thread
+from threading import Event, Thread
 from typing import Callable
 from rocket_onnx.onnx_command_generator import JointCommand
 from rocket.rocket_state import RocketState
@@ -7,6 +7,7 @@ import time
 from drivers.rs485 import Rs485Driver
 from drivers.servo import ServoController
 
+READ_ENCODER_EVERY_N = 30
 JOINT_POS_MID = [-0.0873, -0.0873, -0.0872, -0.0872, -0.0436, -0.0436]
 JOINT_SCALE = [0.1745, 0.1745, 0.2618, 0.2618, 0.3054, 0.3054]
 ACTION_DELAY_S = 0.05
@@ -19,11 +20,13 @@ class Rocket:
         self._state_stream_stopping = False
         self._command_thread = None
         self._state_thread = None
+        self._encoder_thread = None
+        self._encoder_read_event = Event()
         
         self.stepper_driver = Rs485Driver()
         self.servo_driver_left = ServoController(pin=33)
         self.servo_driver_right = ServoController(pin=32)
-        
+        self.ground_truth_position_count = 0
         self.logger = logging.getLogger("Rocket")
         self.config = config
         if config.verbose:
@@ -44,32 +47,8 @@ class Rocket:
         self._state_thread = Thread(
             target=self._run_imu_loop, args=(imu, context), daemon=True
         )
-        self._encoder_read_1 = Thread(
-             target=self._run_encoder_loop, args=(1, context), daemon=True
-        )
-        self._encoder_read_2 = Thread(
-             target=self._run_encoder_loop, args=(2, context), daemon=True
-        )
-        self._encoder_read_3 = Thread(
-             target=self._run_encoder_loop, args=(3, context), daemon=True
-        )
-        self._encoder_read_4 = Thread(
-             target=self._run_encoder_loop, args=(4, context), daemon=True
-        )
         self._state_thread.start()
-        self._encoder_read_1.start() 
-        self._encoder_read_2.start() 
-        self._encoder_read_3.start() 
-        self._encoder_read_4.start() 
-        
     
-    def _run_encoder_loop(self, encoder_addr, context):
-        while not self._state_stream_stopping:
-            enc_start = time.time()
-            data = self.stepper_driver.read_encoder(encoder_addr)
-            context.latest_state.update_from_single_encoder(encoder_addr, data)
-            enc_end = time.time()
-            print(f"[ENCODER {encoder_addr}] t={enc_end:.6f}  dt={enc_end - enc_start:.6f}s")
 
     def _run_imu_loop(self, imu, context):
         while not self._state_stream_stopping:
@@ -92,6 +71,12 @@ class Rocket:
             target=self._run_command_stream, args=(command_policy, timing_policy, atmega), daemon=True
         )
         self._command_thread.start()
+        self._encoder_thread = Thread(
+            target=self._run_encoder_update_loop,
+            args=(command_policy.context,),
+            daemon=True,
+        )
+        self._encoder_thread.start()
     
     def _run_command_stream(
         self, command_policy: Callable[[None], JointCommand], timing_policy: Callable[[None], None], atmega
@@ -149,9 +134,17 @@ class Rocket:
                 # self.servo_driver_left.hold(scaled_joint_angles[1])
                 self._started_streaming = True
                 print("Sending command:", scaled_joint_angles, "\n\n")
-
+                self.ground_truth_position_count += 1
                 sleep_start = time.time()
                 print(f"[SLEEP START]  t={sleep_start:.6f}")
+
+                if self.ground_truth_position_count >= READ_ENCODER_EVERY_N:
+                    self.ground_truth_position_count = 0
+                    self._encoder_read_event.set()
+                else:
+                    command_policy.context.latest_state.update_from_encoders(
+                        {"joints": scaled_joint_angles[2:]}
+                    )
                 time.sleep(ACTION_DELAY_S)
                 sleep_end = time.time()
                 print(f"[SLEEP END]    t={sleep_end:.6f}  dt={sleep_end - sleep_start:.6f}s")
@@ -163,7 +156,6 @@ class Rocket:
                 loop_count += 1
                 totals["policy"] += policy_end - policy_start
                 totals["send"]   += send_end - send_start
-                totals["sleep"]  += sleep_end - sleep_start
                 totals["total"]  += end_time - start_time
                 if loop_count % 5 == 0:
                     print(f"\n--- AVERAGES over {loop_count} loops ---")
@@ -174,11 +166,33 @@ class Rocket:
                 self.logger.warning("timing policy timeout")
                 continue
 
+    def _run_encoder_update_loop(self, context):
+        """Wait for encoder-read events and update state from hardware."""
+        while not self._command_stream_stopping:
+            if not self._encoder_read_event.wait(timeout=0.1):
+                continue
+
+            self._encoder_read_event.clear()
+            try:
+                data = self.stepper_driver.read_all_joints()
+                assumed = context.latest_state.stepper_motor_angle.copy()
+                context.latest_state.update_from_encoders(data)
+                delta = [enc - tgt for enc, tgt in zip(data["joints"], assumed)]
+                print(
+                    f"[ENCODERS]: Updated from encoders={data['joints']} "
+                    f"delta_vs_assumed={delta}"
+                )
+            except Exception as exc:
+                self.logger.error(f"Encoder update loop error: {exc}")
+
     def stop_command_stream(self):
         """Stop sending joint commands to the robot."""
         if self._command_thread is not None:
             self._command_stream_stopping = True
+            self._encoder_read_event.set()
             self._command_thread.join()
+        if self._encoder_thread is not None:
+            self._encoder_thread.join()
     
     def stop_state_stream(self):
         if self._state_thread is not None:
