@@ -20,7 +20,7 @@ INTER_READ_DELAY_S = float(os.getenv("RS485_INTER_READ_DELAY_S", "0.0")) # Set t
 PARITY = os.getenv("RS485_PARITY", "N").upper()
 STOPBITS = float(os.getenv("RS485_STOPBITS", "1"))
 ENDIAN = os.getenv("RS485_ENDIAN", ">")
-DEBUG_TIMING = os.getenv("RS485_DEBUG_TIMING", "0") == "1"
+DEBUG_TIMING = os.getenv("RS485_DEBUG_TIMING", "1") == "1"
 COUNTS_PER_REV = 16384
 PULSES_PER_REV = 200
 RADIANS_PER_COUNT = 2 * math.pi / COUNTS_PER_REV
