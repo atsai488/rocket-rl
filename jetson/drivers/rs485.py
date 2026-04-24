@@ -261,7 +261,7 @@ class Rs485Driver:
 
         return resp[3]
 
-    def send_joint_position(self, joints: dict, max_pulses: int = 20):
+    def send_joint_position(self, joints: dict, max_pulses: int = 10):
         """
         Expected input examples:
           {1: 0.1, 2: -0.2, 3: 1.57, 4: 0.0}
