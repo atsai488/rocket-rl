@@ -14,6 +14,7 @@ TIMEOUT = float(os.getenv("RS485_TIMEOUT", "0.01"))
 READ_RETRIES = int(os.getenv("RS485_READ_RETRIES", "1"))
 TURNAROUND_DELAY_S = float(os.getenv("RS485_TURNAROUND_DELAY_S", "0.0"))
 INTER_READ_DELAY_S = float(os.getenv("RS485_INTER_READ_DELAY_S", "0.0"))
+INTER_MOVE_FRAME_DELAY_S = float(os.getenv("RS485_INTER_MOVE_FRAME_DELAY_S", "0.0001"))
 PARITY = os.getenv("RS485_PARITY", "N").upper()
 STOPBITS = float(os.getenv("RS485_STOPBITS", "1"))
 ENDIAN = os.getenv("RS485_ENDIAN", ">")
@@ -269,7 +270,7 @@ class Rs485Driver:
         """
         results = {}
         addr_times = {}
-        burst_frames: list[bytes] = []
+        prepared_frames: list[tuple[int, bytes]] = []
         self._send_priority = True
 
         try:
@@ -293,7 +294,7 @@ class Rs485Driver:
                     bytes([0xFA, addr & 0xFF, 0xFD, byte4, byte5, 2 & 0xFF])
                     + pulse_bytes
                 )
-                burst_frames.append(self.append_crc(frame))
+                prepared_frames.append((addr, self.append_crc(frame)))
 
                 # No ACK mode: keep status behavior compatible with previous mock ACK path.
                 addr_times[addr] = 0.0
@@ -303,15 +304,18 @@ class Rs485Driver:
                     "pulses": pulses,
                 }
 
-            if burst_frames:
-                t0 = time.time()
+            if prepared_frames:
                 with self._serial_lock:
-                    self.serial.write(b"".join(burst_frames))
+                    for idx, (addr, frame) in enumerate(prepared_frames):
+                        t0 = time.time()
+                        self.serial.write(frame)
+                        addr_times[addr] = time.time() - t0
+
+                        # Some motor controllers do not reliably parse back-to-back
+                        # frames without a tiny spacing gap.
+                        if idx < len(prepared_frames) - 1 and INTER_MOVE_FRAME_DELAY_S > 0:
+                            time.sleep(INTER_MOVE_FRAME_DELAY_S)
                     self.serial.flush()
-                elapsed = time.time() - t0
-                share = elapsed / len(burst_frames)
-                for addr in results:
-                    addr_times[addr] = share
         finally:
             self._send_priority = False
 
