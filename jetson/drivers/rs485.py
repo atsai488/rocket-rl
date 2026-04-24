@@ -188,11 +188,8 @@ class Rs485Driver:
 
     def read_all_joints(self) -> dict:
         joints: List[float] = []
-        r_start = time.time()
         for addr in range(1, 5):
             joints.append(self.read_encoder(addr))
-        r_end = time.time()
-        print(f"[JOINTS] Total time to read all encoders: {r_end-r_start}")
         return {"joints": joints}
     
     def _read_exact(self, n: int) -> bytes:
