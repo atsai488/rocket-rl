@@ -5,7 +5,7 @@ import serial
 from drivers.rs485 import Rs485Driver
 from rocket.rocket import JOINT_POS_MID, JOINT_SCALE
 
-STEPPER_ADDRS = [3]
+STEPPER_ADDRS = [1]
 
 
 PORT = os.getenv("RS485_PORT", "/dev/ttyUSB0")
@@ -103,7 +103,7 @@ def build_enable_command(addr: int = ADDR, enable: bool = True) -> bytes:
 
 def build_move_command(
     addr: int = ADDR,
-    pulses: int = 50,
+    pulses: int = 10,
     speed: int = 0x0280,
     acc: int = 2,
     direction: int = 1,
@@ -169,7 +169,7 @@ def main():
     ) as ser:
         try:
             for addr in STEPPER_ADDRS:
-                oscillate(addr, ser)
+                # oscillate(addr, ser)
                 time.sleep(0.002)
             driver = Rs485Driver(ser=ser)
             for addr in STEPPER_ADDRS:
