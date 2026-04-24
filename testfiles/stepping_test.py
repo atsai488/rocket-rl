@@ -62,6 +62,7 @@ def main():
                     leftover = period_s - elapsed
                     if leftover > 0:
                         time.sleep(leftover)
+                    time.sleep(1)
     except KeyboardInterrupt:
         print("\nStopped.")
     finally:
