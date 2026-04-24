@@ -73,7 +73,7 @@ class Rocket:
         self._command_thread.start()
         self._encoder_thread = Thread(
             target=self._run_encoder_update_loop,
-            args=(command_policy.context,),
+            args=(command_policy.state,),
             daemon=True,
         )
         self._encoder_thread.start()
@@ -142,7 +142,7 @@ class Rocket:
                     self.ground_truth_position_count = 0
                     self._encoder_read_event.set()
                 else:
-                    command_policy.context.latest_state.update_from_encoders(
+                    command_policy.state.latest_state.update_from_encoders(
                         {"joints": scaled_joint_angles[2:]}
                     )
                 time.sleep(ACTION_DELAY_S)
