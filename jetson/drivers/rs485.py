@@ -10,7 +10,7 @@ from typing import List, Optional
 
 PORT = os.getenv("RS485_PORT", "/dev/ttyUSB0")
 BAUDRATE = int(os.getenv("RS485_BAUDRATE", "256000"))
-TIMEOUT = float(os.getenv("RS485_TIMEOUT", "0.1"))
+TIMEOUT = float(os.getenv("RS485_TIMEOUT", "0.001"))
 READ_RETRIES = int(os.getenv("RS485_READ_RETRIES", "1"))
 TURNAROUND_DELAY_S = float(os.getenv("RS485_TURNAROUND_DELAY_S", "0.0001"))
 INTER_READ_DELAY_S = float(os.getenv("RS485_INTER_READ_DELAY_S", "0.0002"))
@@ -82,13 +82,15 @@ class Rs485Driver:
         return bytes(frame)
 
     @staticmethod
-    def read_exact(ser: serial.Serial, n: int) -> bytes:
-        deadline = time.time() + 0.5
+    def read_exact(ser: serial.Serial, n: int, timeout_s: float = 0.003) -> bytes:
         buf = bytearray()
-        while len(buf) < n and time.time() < deadline:
-            chunk = ser.read(n - len(buf))
-            if chunk:
-                buf.extend(chunk)
+        deadline = time.monotonic() + timeout_s
+        while len(buf) < n:
+            available = ser.in_waiting
+            if available:
+                buf.extend(ser.read(min(available, n - len(buf))))
+            elif time.monotonic() > deadline:
+                break
         return bytes(buf)
 
     @classmethod
@@ -214,50 +216,7 @@ class Rs485Driver:
             else:
                 # returns a mock ACK with status set to 1
                 return b"\x00\x00\x00\x01"
-    def read_all_joints(self) -> dict:
-        """
-        Burst-send all 4 encoder query frames, then read all 40 bytes back
-        in one shot. Eliminates per-encoder lock/flush/write overhead.
-        """
-        addrs = [1, 2, 3, 4]
-        burst = b"".join(self.build_read_cmd(a) for a in addrs)  # 16 bytes total
 
-        with self._serial_lock:
-            self.serial.reset_input_buffer()
-            self.serial.reset_output_buffer()
-            self.serial.write(burst)
-            self.serial.flush()
-            raw = self.read_exact(self.serial, 40)  # 10 bytes × 4 encoders
-
-        joints = []
-        for i, addr in enumerate(addrs):
-            chunk = raw[i * 10 : (i + 1) * 10]
-            try:
-                if len(chunk) != 10:
-                    raise ValueError(f"Short chunk for encoder {addr}: {chunk.hex()}")
-                carry, value = self.parse_encoder_response(addr, chunk)
-                position_counts = carry * COUNTS_PER_REV + value
-
-                zero_counts = self._zero_position_counts[addr]
-                if zero_counts is None:
-                    zero_counts = position_counts
-                    self._zero_position_counts[addr] = zero_counts
-
-                relative_counts = position_counts - zero_counts
-                radians = relative_counts * RADIANS_PER_COUNT / GEAR_RATIO
-                if addr in (0x01, 0x04):
-                    radians *= -1
-                self._last_positions[addr] = radians
-                joints.append(radians)
-
-            except Exception as exc:
-                now = time.monotonic()
-                if now - self._last_error_log[addr] > 1.0:
-                    print(f"Error parsing encoder {addr}: {exc}")
-                    self._last_error_log[addr] = now
-                joints.append(self._last_positions.get(addr, 0.0))
-
-        return {"joints": joints}
     def move_position(
         self,
         addr: int,
