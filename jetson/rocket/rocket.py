@@ -10,7 +10,7 @@ from drivers.servo import ServoController
 READ_ENCODER_EVERY_N = 1
 JOINT_POS_MID = [-0.0873, -0.0873, -0.0872, -0.0872, -0.0436, -0.0436]
 JOINT_SCALE = [0.1745, 0.1745, 0.2618, 0.2618, 0.3054, 0.3054]
-ACTION_DELAY_S = 0.03
+ACTION_DELAY_S = 0.05
 
 class Rocket:
     def __init__(self, config) -> None:
@@ -55,6 +55,8 @@ class Rocket:
             start = time.time()
             data = imu.read_all()
             context.latest_state.update_from_imu(data)
+            data = self.stepper_driver.read_all_joints()
+            context.latest_state.update_from_encoders(data)
             context.event.set()
             end = time.time()
             print(f"[IMU]       t={end:.6f}  dt={end - start:.6f}s")
@@ -173,17 +175,17 @@ class Rocket:
                 continue
 
             self._encoder_read_event.clear()
-            try:
-                data = self.stepper_driver.read_all_joints()
-                assumed = context.latest_state.stepper_motor_angle.copy()
-                context.latest_state.update_from_encoders(data)
-                delta = [enc - tgt for enc, tgt in zip(data["joints"], assumed)]
-                print(
-                    f"[ENCODERS]: Updated from encoders={data['joints']} "
-                    f"delta_vs_assumed={delta}"
-                )
-            except Exception as exc:
-                self.logger.error(f"Encoder update loop error: {exc}")
+            # try:
+            #     data = self.stepper_driver.read_all_joints()
+            #     assumed = context.latest_state.stepper_motor_angle.copy()
+            #     context.latest_state.update_from_encoders(data)
+            #     delta = [enc - tgt for enc, tgt in zip(data["joints"], assumed)]
+            #     print(
+            #         f"[ENCODERS]: Updated from encoders={data['joints']} "
+            #         f"delta_vs_assumed={delta}"
+            #     )
+            # except Exception as exc:
+            #     self.logger.error(f"Encoder update loop error: {exc}")
 
     def stop_command_stream(self):
         """Stop sending joint commands to the robot."""
