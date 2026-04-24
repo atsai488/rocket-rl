@@ -10,13 +10,14 @@ from typing import List, Optional
 
 PORT = os.getenv("RS485_PORT", "/dev/ttyUSB0")
 BAUDRATE = int(os.getenv("RS485_BAUDRATE", "256000"))
-TIMEOUT = float(os.getenv("RS485_TIMEOUT", "0.001"))
+TIMEOUT = float(os.getenv("RS485_TIMEOUT", "0.01"))
 READ_RETRIES = int(os.getenv("RS485_READ_RETRIES", "1"))
-TURNAROUND_DELAY_S = float(os.getenv("RS485_TURNAROUND_DELAY_S", "0.0001"))
-INTER_READ_DELAY_S = float(os.getenv("RS485_INTER_READ_DELAY_S", "0.0002"))
+TURNAROUND_DELAY_S = float(os.getenv("RS485_TURNAROUND_DELAY_S", "0.0"))
+INTER_READ_DELAY_S = float(os.getenv("RS485_INTER_READ_DELAY_S", "0.0"))
 PARITY = os.getenv("RS485_PARITY", "N").upper()
 STOPBITS = float(os.getenv("RS485_STOPBITS", "1"))
 ENDIAN = os.getenv("RS485_ENDIAN", ">")
+DEBUG_TIMING = os.getenv("RS485_DEBUG_TIMING", "0") == "1"
 COUNTS_PER_REV = 16384
 PULSES_PER_REV = 200
 RADIANS_PER_COUNT = 2 * math.pi / COUNTS_PER_REV
@@ -82,17 +83,13 @@ class Rs485Driver:
         return bytes(frame)
 
     @staticmethod
-    def read_exact(ser: serial.Serial, n: int, timeout_s: float = 0.03) -> bytes:
+    def read_exact(ser: serial.Serial, n: int) -> bytes:
+        deadline = time.time() + 0.5
         buf = bytearray()
-        deadline = time.monotonic() + timeout_s
-        while len(buf) < n:
-            available = ser.in_waiting
-            if available:
-                buf.extend(ser.read(min(available, n - len(buf))))
-            elif time.monotonic() > deadline:
-                print("ran out of time!!!!!")
-                break
-        print(deadline - time.monotonic()) 
+        while len(buf) < n and time.time() < deadline:
+            chunk = ser.read(n - len(buf))
+            if chunk:
+                buf.extend(chunk)
         return bytes(buf)
 
     @classmethod
@@ -127,8 +124,6 @@ class Rs485Driver:
             time.sleep(0.001)
         lock_acquired = time.time()
         try:
-            self.serial.reset_input_buffer()
-            self.serial.reset_output_buffer()
             write_start = time.time()
             self.serial.write(cmd)
             self.serial.flush()
@@ -137,7 +132,13 @@ class Rs485Driver:
             read_exact_start = time.time()
             resp = self.read_exact(self.serial, 10)
             read_done = time.time()
-            print(f"[ENC {addr}] lock_wait={lock_acquired - lock_wait_start:.4f}s  write={write_done - write_start:.4f}s  read_exact={read_done - read_exact_start:.4f}s  total={read_done - lock_acquired:.4f}s")
+            if DEBUG_TIMING:
+                print(
+                    f"[ENC {addr}] lock_wait={lock_acquired - lock_wait_start:.4f}s  "
+                    f"write={write_done - write_start:.4f}s  "
+                    f"read_exact={read_done - read_exact_start:.4f}s  "
+                    f"total={read_done - lock_acquired:.4f}s"
+                )
             if len(resp) != 10:
                 raise TimeoutError(f"Short response from encoder {addr}: {resp.hex()}")
 
@@ -187,11 +188,11 @@ class Rs485Driver:
 
     def read_all_joints(self) -> dict:
         joints: List[float] = []
+        r_start = time.time()
         for addr in range(1, 5):
-            r_start = time.time()
             joints.append(self.read_encoder(addr))
-            r_end = time.time()
-            print(f"addr: {addr} joint read time: {r_end-r_start}")
+        r_end = time.time()
+        print(f"[JOINTS] Total time to read all encoders: {r_end-r_start}")
         return {"joints": joints}
     
     def _read_exact(self, n: int) -> bytes:
@@ -206,14 +207,10 @@ class Rs485Driver:
     def _send_frame(self, frame: bytes, expect_len: int, check_ack: bool = True) -> bytes:
         frame = self.append_crc(frame)
         with self._serial_lock:
-            self.serial.reset_input_buffer()
-            self.serial.reset_output_buffer()
             self.serial.write(frame)
             self.serial.flush()
 
-            if check_ack: 
-                if TURNAROUND_DELAY_S > 0:
-                    time.sleep(TURNAROUND_DELAY_S)
+            if check_ack:
                 return self._read_exact(expect_len)
             else:
                 # returns a mock ACK with status set to 1
