@@ -56,6 +56,8 @@ def main():
                     t0 = time.time()
                     if args.run:
                         driver.send_joint_position(joints, max_pulses=args.max_pulses)
+                        for addr in range(1, 5):
+                            driver.read_encoder(addr)
                     elapsed = time.time() - t0
                     leftover = period_s - elapsed
                     if leftover > 0:
