@@ -3,4 +3,19 @@
   send    : 0.031180s                                                   
   sleep   : 0.100684s                                                   
   total   : 0.138037s                                                   
----
+--- (action delay = 0.1s), ~7.24 hz
+
+--- AVERAGES over 200 loops ---                                         
+  policy  : 0.003693s                                                   
+  send    : 0.042164s                                                   
+  sleep   : 0.070674s                                                   
+  total   : 0.118952s                                                   
+---  (action delay = 0.07s), ~8.4hz
+
+--- AVERAGES over 330 loops ---                                         
+[IMU]       t=1776827989.124122  dt=0.013346s                           
+  policy  : 0.003627s
+  send    : 0.034605s
+  sleep   : 0.050635s
+  total   : 0.091106s
+---  (action delay = 0.05s), ~10.98hz, 

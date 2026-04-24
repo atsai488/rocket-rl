@@ -53,6 +53,7 @@ class ServoController:
     def hold(self, angle: float) -> None:
         """Set angle in radians and keep pulses active."""
         duty = self.angle_to_duty_cycle(angle)
+        print(f"[DEBUG] angle={math.degrees(angle):.1f}deg  duty={duty:.2f}%  pulse={MIN_US + (angle/math.pi)*(MAX_US-MIN_US):.0f}us")
         self._pwm.ChangeDutyCycle(duty)
 
     def stop(self) -> None:
