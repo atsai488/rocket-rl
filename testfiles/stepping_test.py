@@ -30,7 +30,7 @@ def main():
     parser.add_argument("--hz",          type=float, default=10.0, help="Send rate in Hz (default 10)")
     parser.add_argument("--cycles",      type=int,   default=5,    help="Number of full gait cycles (default 5)")
     parser.add_argument("--hold-cycles", type=int,   default=3,    help="Sends per phase to let motors converge (default 3)")
-    parser.add_argument("--max-pulses",  type=int,   default=20,   help="Max pulses per send (default 20, keep low for safety)")
+    parser.add_argument("--max-pulses",  type=int,   default=5,   help="Max pulses per send (default 20, keep low for safety)")
     parser.add_argument("--run",         action="store_true",       help="Actually send commands to motors (dry-run by default)")
     args = parser.parse_args()
 
