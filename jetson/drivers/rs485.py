@@ -303,6 +303,14 @@ class Rs485Driver:
 
         return resp[3]
 
+    _JOINT_NAMES = {1: "Hip Servo L", 2: "Hip Servo R", 3: "Knee L", 4: "Knee R"}
+
+    def _log_joint_move(self, addr: int, target_rad: float, delta_rad: float, pulses: int):
+        name = self._JOINT_NAMES.get(addr, f"Motor {addr}")
+        pos_dir = "forward" if target_rad <= 0 else "backward"
+        delta_dir = "forward" if delta_rad <= 0 else "backward"
+        print(f"[{name}] pos={target_rad:.4f}rad ({pos_dir})  delta={delta_rad:.4f}rad ({delta_dir})  pulses={pulses}")
+
     def send_joint_position(self, joints: dict, max_pulses: int = 20):
         """
         Expected input examples:
@@ -324,6 +332,7 @@ class Rs485Driver:
             delta_rad = target_rad - current_rad
             pulses = int(round((abs(delta_rad) / (2 * math.pi)) * PULSES_PER_REV) * GEAR_RATIO)
             pulses = min(pulses, max_pulses)
+            self._log_joint_move(addr, target_rad, delta_rad, pulses)
             if (addr == 0x01 or addr == 0x04):
                 direction = 1 if delta_rad <= 0 else 0
             else:
