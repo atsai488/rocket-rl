@@ -168,10 +168,7 @@ class Rs485Driver:
         read_start_time = time.time()
         for attempt in range(self.retries):
             try:
-                val = self._read_encoder_once(addr)
-                read_end_time = time.time()
-                print(f"[Encoder {addr}]: Read time ", read_end_time - read_start_time)
-                return val
+                return self._read_encoder_once(addr)
             except Exception as exc:
                 if attempt < self.retries - 1 and INTER_READ_DELAY_S > 0:
                     time.sleep(INTER_READ_DELAY_S)
