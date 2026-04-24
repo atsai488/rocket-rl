@@ -48,11 +48,11 @@ def main():
         for cycle in range(args.cycles):
             for phase in PHASES:
                 joints = policy_to_joints(phase["policy"])
-                print(f"\n[Cycle {cycle+1}/{args.cycles}] Phase={phase['name']}")
                 _NAMES = {1: "Hip L", 2: "Hip R", 3: "Knee L", 4: "Knee R"}
-                for addr, rad in joints.items():
-                    print(f"  {_NAMES[addr]}: {rad:.4f} rad")
-                for _ in range(args.hold_cycles):
+                for hold in range(args.hold_cycles):
+                    print(f"\n[Cycle {cycle+1}/{args.cycles}] Phase={phase['name']} hold={hold+1}/{args.hold_cycles}")
+                    for addr, rad in joints.items():
+                        print(f"  {_NAMES[addr]}: {rad:.4f} rad")
                     t0 = time.time()
                     if args.run:
                         driver.send_joint_position(joints, max_pulses=args.max_pulses)
