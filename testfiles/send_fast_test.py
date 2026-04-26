@@ -41,6 +41,18 @@ def main():
         pos4_after = driver.read_encoder(4)
         print(f"After    addr=3: {pos3_after:.4f} rad  addr=4: {pos4_after:.4f} rad")
 
+        print("\n--- ACK check (move_position with check_ack=True) ---")
+        for addr in (3):
+            status = driver.move_position(addr, PULSES_BACK, direction=1, check_ack=True)
+            if status == 0:
+                print(f"  addr={addr}: ACK received — status=FAIL (motor rejected command)")
+            elif status == 1:
+                print(f"  addr={addr}: ACK received — status=STARTING (motor accepted)")
+            elif status == 2:
+                print(f"  addr={addr}: ACK received — status=COMPLETE")
+            else:
+                print(f"  addr={addr}: ACK NOT received or unreadable (status={status})")
+
 
 if __name__ == "__main__":
     main()
