@@ -309,13 +309,13 @@ class Rs485Driver:
                     for idx, (addr, frame) in enumerate(prepared_frames):
                         t0 = time.time()
                         self.serial.write(frame)
+                        self.serial.flush()
                         addr_times[addr] = time.time() - t0
 
                         # Some motor controllers do not reliably parse back-to-back
                         # frames without a tiny spacing gap.
                         if idx < len(prepared_frames) - 1 and INTER_MOVE_FRAME_DELAY_S > 0:
                             time.sleep(INTER_MOVE_FRAME_DELAY_S)
-                    self.serial.flush()
         finally:
             self._send_priority = False
 
