@@ -324,6 +324,55 @@ class Rs485Driver:
         print(f"[SEND] {times_str}  avg={avg:.4f}s  total={sum(addr_times.values()):.4f}s")
         return results
 
+    def send_joint_position_fast(self, joints: dict, max_pulses: int = 10):
+        """
+        Same as send_joint_position but batches all 4 frames into a single
+        serial.write() + serial.flush() to minimise syscall overhead on the
+        Jetson's tegra-uart DMA / USB-serial FIFO.  Use when
+        INTER_MOVE_FRAME_DELAY_S == 0 and the motor controllers can handle
+        back-to-back frames without a gap.
+        """
+        results = {}
+        prepared_frames: list[tuple[int, bytes]] = []
+        self._send_priority = True
+
+        try:
+            for addr, target_rad in joints.items():
+                if not isinstance(addr, int):
+                    continue
+
+                current_rad = self._last_positions.get(addr, 0.0)
+                delta_rad = target_rad - current_rad
+                pulses = int(round((abs(delta_rad) / (2 * math.pi)) * PULSES_PER_REV) * GEAR_RATIO)
+                pulses = min(pulses, max_pulses)
+                if addr == 0x01 or addr == 0x04:
+                    direction = 1 if delta_rad <= 0 else 0
+                else:
+                    direction = 1 if delta_rad >= 0 else 0
+
+                byte4 = ((direction & 0x01) << 7) | ((10 >> 8) & 0x0F)
+                byte5 = 10 & 0xFF
+                pulse_bytes = int(pulses).to_bytes(4, byteorder="big", signed=False)
+                frame = (
+                    bytes([0xFA, addr & 0xFF, 0xFD, byte4, byte5, 2 & 0xFF])
+                    + pulse_bytes
+                )
+                prepared_frames.append((addr, self.append_crc(frame)))
+                results[addr] = {"enabled": True, "status": 1, "pulses": pulses}
+
+            if prepared_frames:
+                if DEBUG_TIMING:
+                    t0 = time.time()
+                with self._serial_lock:
+                    self.serial.write(b"".join(f for _, f in prepared_frames))
+                    self.serial.flush()
+                if DEBUG_TIMING:
+                    print(f"[SEND_FAST] {len(prepared_frames)} frames in {time.time() - t0:.4f}s")
+        finally:
+            self._send_priority = False
+
+        return results
+
     def shutdown(self, tolerance: float = 0.01, step_delay: float = 0.05):
         """Gradually move all joints to ZERO_GRAVITY_POS before power off."""
         print("[SHUTDOWN] Moving to zero gravity position...")

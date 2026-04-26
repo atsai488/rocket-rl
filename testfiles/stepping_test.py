@@ -9,10 +9,10 @@ STEPPER_SCALES = JOINT_SCALE[2:]
 
 # Policy outputs in [-1, 1]: [hip_L, hip_R, knee_L, knee_R]
 PHASES = [
-    {"name": "1_R_LIFT",       "policy": [ 0.55,  0.81,  0.95, -0.95]},  # L planted, R lifts
-    {"name": "2_R_TRANSFER",   "policy": [ 0.56,  0.19,  0.95,  0.95]},  # R lands
-    {"name": "3_L_LIFT",       "policy": [ 0.96, -0.27, -0.95,  0.95]},  # R planted, L lifts
-    {"name": "4_L_TRANSFER",   "policy": [ 0.56,  0.19,  0.95,  0.95]},  # L lands → back to phase 1
+    {"name": "1_R_LIFT",      "policy": [+0.10, +0.88, -0.95, +0.95]},  # L planted, R lifts
+    {"name": "2_R_TRANSFER",  "policy": [+0.58, +0.26, -0.95, -0.95]},  # both planted, weight shifting to L
+    {"name": "3_L_LIFT",      "policy": [+0.88, +0.10, +0.95, -0.95]},  # R planted, L lifts
+    {"name": "4_L_TRANSFER",  "policy": [+0.26, +0.58, -0.95, -0.95]},  # both planted, weight shifting to R
 ]
 
 
@@ -56,6 +56,7 @@ def main():
                     t0 = time.time()
                     if args.run:
                         driver.send_joint_position(joints, max_pulses=args.max_pulses)
+                        time.sleep(0.05)
                         for addr in range(1, 5):
                             driver.read_encoder(addr)
                     elapsed = time.time() - t0
