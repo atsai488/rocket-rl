@@ -149,9 +149,11 @@ def oscillate(addr: int, ser: serial.Serial, speed: int = 10, delay: float = 0.0
     """Oscillate a single motor back and forth until KeyboardInterrupt."""
     print(f"Oscillating addr={addr} — Ctrl+C to stop")
     for _ in range(10):
-        send_and_read_status(ser, build_move_command(addr=addr, speed=speed, direction=0))
+        ser.write(build_move_command(addr=addr, speed=speed, direction=0))
+        ser.flush()
         time.sleep(delay)
-        send_and_read_status(ser, build_move_command(addr=addr, speed=speed, direction=1))
+        ser.write(build_move_command(addr=addr, speed=speed, direction=1))
+        ser.flush()
         time.sleep(delay)
 
 
