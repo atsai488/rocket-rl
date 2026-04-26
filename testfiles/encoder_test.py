@@ -5,7 +5,7 @@ import serial
 from drivers.rs485 import Rs485Driver
 from rocket.rocket import JOINT_POS_MID, JOINT_SCALE
 
-STEPPER_ADDRS = [1]
+STEPPER_ADDRS = [3]
 
 
 PORT = os.getenv("RS485_PORT", "/dev/ttyUSB0")
@@ -185,7 +185,7 @@ def main():
     ) as ser:
         try:
             for addr in STEPPER_ADDRS:
-                # oscillate(addr, ser)
+                oscillate(addr, ser)
                 time.sleep(0.002)
             driver = Rs485Driver(ser=ser)
             for addr in STEPPER_ADDRS:
