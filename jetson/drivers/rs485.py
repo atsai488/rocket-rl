@@ -364,8 +364,10 @@ class Rs485Driver:
                 if DEBUG_TIMING:
                     t0 = time.time()
                 with self._serial_lock:
-                    for _, frame in prepared_frames:
+                    for idx, (_, frame) in enumerate(prepared_frames):
                         self.serial.write(frame)
+                        if idx < len(prepared_frames) - 1 and INTER_MOVE_FRAME_DELAY_S > 0:
+                            time.sleep(INTER_MOVE_FRAME_DELAY_S)
                     self.serial.flush()
                 if DEBUG_TIMING:
                     print(f"[SEND_FAST] {len(prepared_frames)} frames in {time.time() - t0:.4f}s")
