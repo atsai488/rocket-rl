@@ -146,9 +146,11 @@ class Rocket:
                 totals["sleep"]  += sleep_end - sleep_start
                 totals["total"]  += end_time - start_time
                 if loop_count % 5 == 0:
+                    avg_total = totals["total"] / loop_count
                     print(f"\n--- AVERAGES over {loop_count} loops ---")
                     for k, v in totals.items():
                         print(f"  {k:<8}: {v / loop_count:.6f}s")
+                    print(f"  hz      : {1 / avg_total:.2f} Hz")
                     print("---\n")
             else:
                 self.logger.warning("timing policy timeout")
