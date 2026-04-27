@@ -96,6 +96,14 @@ class Rocket:
         loop_count = 0
         totals = {"policy": 0.0, "send": 0.0, "sleep": 0.0, "total": 0.0}
 
+        n_motors = 6
+        prev_pos = None   # scaled_joint_angles from last loop
+        prev_vel = None   # per-motor delta_pos from last loop
+        prev_acc = None   # per-motor delta_vel from last loop
+        sum_abs_vel = [0.0] * n_motors  # sum |delta_pos|
+        sum_abs_acc = [0.0] * n_motors  # sum |delta_vel|
+        sum_abs_jrk = [0.0] * n_motors  # sum |delta_acc|
+
         while not self._command_stream_stopping:
             if timing_policy():
                 start_time = time.time()
@@ -118,6 +126,28 @@ class Rocket:
                     for mid, angle, scale in zip(JOINT_POS_MID, joint_angles, JOINT_SCALE)
                 ]
                 
+                if prev_pos is not None:
+                    delta_pos = [scaled_joint_angles[i] - prev_pos[i] for i in range(n_motors)]
+                    for i in range(n_motors):
+                        sum_abs_vel[i] += abs(delta_pos[i])
+                    if prev_vel is not None:
+                        delta_vel = [delta_pos[i] - prev_vel[i] for i in range(n_motors)]
+                        for i in range(n_motors):
+                            sum_abs_acc[i] += abs(delta_vel[i])
+                        if prev_acc is not None:
+                            delta_acc = [delta_vel[i] - prev_acc[i] for i in range(n_motors)]
+                            for i in range(n_motors):
+                                sum_abs_jrk[i] += abs(delta_acc[i])
+                        prev_acc = delta_vel
+                    else:
+                        prev_acc = None
+                        delta_vel = None
+                    prev_vel = delta_pos
+                else:
+                    prev_vel = None
+                    prev_acc = None
+                prev_pos = scaled_joint_angles
+
                 send_start = time.time()
                 print(f"[SEND START]   t={send_start:.6f}")
                 self.stepper_driver.send_joint_position_fast(
@@ -151,6 +181,12 @@ class Rocket:
                     for k, v in totals.items():
                         print(f"  {k:<8}: {v / loop_count:.6f}s")
                     print(f"  hz      : {1 / avg_total:.2f} Hz")
+                    vel_denom = max(loop_count - 1, 1)
+                    acc_denom = max(loop_count - 2, 1)
+                    jrk_denom = max(loop_count - 3, 1)
+                    print(f"  {'motor':<6}  {'avg|vel|':>10}  {'avg|acc|':>10}  {'avg|jerk|':>10}")
+                    for i in range(n_motors):
+                        print(f"  m{i:<5}  {sum_abs_vel[i]/vel_denom:>10.6f}  {sum_abs_acc[i]/acc_denom:>10.6f}  {sum_abs_jrk[i]/jrk_denom:>10.6f}")
                     print("---\n")
             else:
                 self.logger.warning("timing policy timeout")
