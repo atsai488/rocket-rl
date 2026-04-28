@@ -6,37 +6,40 @@ import logging
 import time
 from drivers.rs485 import Rs485Driver
 from drivers.servo import ServoController
+from rocket.constants import JOINT_MID, JOINT_HALF_RANGE, JOINT_FULL_RANGE
 
-JOINT_POS_MID = [-0.0873, -0.0873, -0.0872, -0.0872, -0.0436, -0.0436]
-JOINT_SCALE = [0.1745, 0.1745, 0.2618, 0.2618, 0.3054, 0.3054]
 ACTION_DELAY_S = 0.08   # 0.08 -> 10 hz, 0.02 --> 25hz
 
 class Rocket:
-    def __init__(self, config) -> None:
-        
+    def __init__(self, config, policy_type: str = "delta") -> None:
+        if policy_type not in ("delta", "position"):
+            raise ValueError(f"Unknown policy_type '{policy_type}'. Choose 'delta' or 'position'.")
+        self.policy_type = policy_type
+
         self._started_streaming = False
         self._command_stream_stopping = False
         self._state_stream_stopping = False
         self._command_thread = None
         self._state_thread = None
-        
+
         self.stepper_driver = Rs485Driver()
         self.servo_driver_left = ServoController(pin=33)
         self.servo_driver_right = ServoController(pin=32)
-        
+
         self.logger = logging.getLogger("Rocket")
         self.config = config
         if config.verbose:
             logging.basicConfig(level=logging.DEBUG)
+        print(f"[Rocket] policy_type={policy_type}")
+        print(f"[Rocket] JOINT_MID        = {[round(v, 4) for v in JOINT_MID]}")
+        print(f"[Rocket] JOINT_HALF_RANGE = {[round(v, 4) for v in JOINT_HALF_RANGE]}")
+        print(f"[Rocket] JOINT_FULL_RANGE = {[round(v, 4) for v in JOINT_FULL_RANGE]}")
 
     def __del__(self):
-        """clean up active streams and threads if spot goes out of scope or is deleted"""
         self.stop_command_stream()
-        self.stop_state_stream();
-
+        self.stop_state_stream()
 
     def power_on(self):
-        """Turn on power to robot's motors."""
         # TODO send message to turn on the enable signal to all the motors
         pass
 
@@ -45,7 +48,7 @@ class Rocket:
             target=self._run_state_loop, args=(imu, context), daemon=True
         )
         self._state_thread.start()
-    
+
     def _run_state_loop(self, imu, context):
         while not self._state_stream_stopping:
             start = time.time()
@@ -59,8 +62,7 @@ class Rocket:
             enc_end = time.time()
             print(f"[ENCODER] t={enc_end:.6f}  dt={enc_end - enc_start:.6f}s")
             context.event.set()
-        
-    
+
     def start_command_stream(self, command_policy, timing_policy, atmega):
         """Create command stream to send joint level commands to the robot.
 
@@ -72,16 +74,10 @@ class Rocket:
             target=self._run_command_stream, args=(command_policy, timing_policy, atmega), daemon=True
         )
         self._command_thread.start()
-    
+
     def _run_command_stream(
         self, command_policy: Callable[[None], JointCommand], timing_policy: Callable[[None], None], atmega
     ):
-        """private function to be run in command stream thread.
-
-        arguments
-        command_policy -- callback supplied to start_command_stream to create commands
-        timing_policy -- callback supplied to start_command_stream to control timing
-        """
         try:
             self.logger.info("Starting command stream")
             self._command_snder(command_policy, timing_policy, atmega)
@@ -89,20 +85,18 @@ class Rocket:
             self.logger.error(f"Error in command stream: {e}")
         finally:
             self.logger.info("Command stream stopped")
-    
-    
+
     def _command_snder(self, command_policy, timing_policy, atmega):
-        """Send commands over i2c to the robot."""
         loop_count = 0
         totals = {"policy": 0.0, "send": 0.0, "sleep": 0.0, "total": 0.0}
 
         n_motors = 6
-        prev_pos = None   # scaled_joint_angles from last loop
-        prev_vel = None   # per-motor delta_pos from last loop
-        prev_acc = None   # per-motor delta_vel from last loop
-        sum_abs_vel = [0.0] * n_motors  # sum |delta_pos|
-        sum_abs_acc = [0.0] * n_motors  # sum |delta_vel|
-        sum_abs_jrk = [0.0] * n_motors  # sum |delta_acc|
+        prev_pos = None
+        prev_vel = None
+        prev_acc = None
+        sum_abs_vel = [0.0] * n_motors
+        sum_abs_acc = [0.0] * n_motors
+        sum_abs_jrk = [0.0] * n_motors
 
         while not self._command_stream_stopping:
             if timing_policy():
@@ -120,14 +114,15 @@ class Rocket:
                     self.logger.warning("command policy returned too few joint angles")
                     continue
 
-                # added a safety clip to joint limits
-                scaled_joint_angles = [
-                    max(mid - scale, min(mid + angle * scale, mid + scale))
-                    for mid, angle, scale in zip(JOINT_POS_MID, joint_angles, JOINT_SCALE)
-                ]
-                
+                if self.policy_type == "delta":
+                    # action × full_range = displacement in radians; rs485 adds to current + clamps
+                    raw_angles = [a * r for a, r in zip(joint_angles, JOINT_FULL_RANGE)]
+                else:
+                    # mid + action × half_range = absolute target position
+                    raw_angles = [mid + a * hr for mid, a, hr in zip(JOINT_MID, joint_angles, JOINT_HALF_RANGE)]
+
                 if prev_pos is not None:
-                    delta_pos = [scaled_joint_angles[i] - prev_pos[i] for i in range(n_motors)]
+                    delta_pos = [raw_angles[i] - prev_pos[i] for i in range(n_motors)]
                     for i in range(n_motors):
                         sum_abs_vel[i] += abs(delta_pos[i])
                     if prev_vel is not None:
@@ -146,20 +141,18 @@ class Rocket:
                 else:
                     prev_vel = None
                     prev_acc = None
-                prev_pos = scaled_joint_angles
+                prev_pos = raw_angles
 
                 send_start = time.time()
                 print(f"[SEND START]   t={send_start:.6f}")
                 self.stepper_driver.send_joint_position_fast(
-                    {addr: scaled_joint_angles[addr+1] for addr in range(1, 5)},
-                    hip_pulses=10, knee_pulses=20)
+                    {addr: raw_angles[addr + 1] for addr in range(1, 5)},
+                    hip_pulses=10, knee_pulses=20,
+                    delta=(self.policy_type == "delta"))
                 send_end = time.time()
                 print(f"[SEND END]     t={send_end:.6f}  dt={send_end - send_start:.6f}s")
 
-                # self.servo_driver_right.hold(scaled_joint_angles[0])
-                # self.servo_driver_left.hold(scaled_joint_angles[1])
                 self._started_streaming = True
-                print("Sending command:", scaled_joint_angles, "\n\n")
 
                 sleep_start = time.time()
                 print(f"[SLEEP START]  t={sleep_start:.6f}")
@@ -169,7 +162,6 @@ class Rocket:
 
                 end_time = time.time()
                 print(f"[LOOP END]     t={end_time:.6f}  dt={end_time - start_time:.6f}s  (total)")
-                print("time: ", end_time - start_time)
 
                 loop_count += 1
                 totals["policy"] += policy_end - policy_start
@@ -198,9 +190,8 @@ class Rocket:
         if self._command_thread is not None:
             self._command_stream_stopping = True
             self._command_thread.join()
-    
+
     def stop_state_stream(self):
         if self._state_thread is not None:
             self._state_stream_stopping = True
             self._state_thread.join()
-

@@ -7,6 +7,8 @@ import time
 from threading import RLock
 from typing import List, Optional
 
+from rocket.constants import STEPPER_LIMITS
+
 
 PORT = os.getenv("RS485_PORT", "/dev/ttyUSB0")
 BAUDRATE = int(os.getenv("RS485_BAUDRATE", "256000"))
@@ -261,91 +263,28 @@ class Rs485Driver:
 
         return resp[3]
 
-    def send_joint_position(self, joints: dict, hip_pulses: int = 10, knee_pulses: int = 20):
+    def send_joint_position_fast(self, joints: dict, hip_pulses: int = 10, knee_pulses: int = 20, delta: bool = False):
         """
-        Expected input examples:
-          {1: 0.1, 2: -0.2, 3: 1.57, 4: 0.0}
-        where values are absolute joint targets in radians.
-
-        Each target is converted into a delta from the last cached encoder
-        position, then sent as a motor move command.
+        Send joint commands for each stepper addr (1-4).
+        delta=False: values are absolute target positions in radians.
+        delta=True:  values are displacements in radians, clamped to URDF joint limits.
+        Batches all frames into a single serial write for low latency.
         """
         results = {}
-        addr_times = {}
         prepared_frames: list[tuple[int, bytes]] = []
         self._send_priority = True
 
         try:
-            for addr, target_rad in joints.items():
+            for addr, value in joints.items():
                 if not isinstance(addr, int):
                     continue
 
                 current_rad = self._last_positions.get(addr, 0.0)
-                delta_rad = target_rad - current_rad
-                pulses = int(round((abs(delta_rad) / (2 * math.pi)) * PULSES_PER_REV) * GEAR_RATIO)
-                max_p = hip_pulses if addr in HIP_ADDRS else knee_pulses
-                pulses = min(pulses, max_p)
-                if (addr == 0x01 or addr == 0x04):
-                    direction = 1 if delta_rad <= 0 else 0
+                if delta:
+                    lo, hi = STEPPER_LIMITS.get(addr, (-math.inf, math.inf))
+                    delta_rad = max(lo - current_rad, min(hi - current_rad, value))
                 else:
-                    direction = 1 if delta_rad >= 0 else 0
-
-                byte4 = ((direction & 0x01) << 7) | ((10 >> 8) & 0x0F)
-                byte5 = 10 & 0xFF
-                pulse_bytes = int(pulses).to_bytes(4, byteorder="big", signed=False)
-                frame = (
-                    bytes([0xFA, addr & 0xFF, 0xFD, byte4, byte5, 2 & 0xFF])
-                    + pulse_bytes
-                )
-                prepared_frames.append((addr, self.append_crc(frame)))
-
-                # No ACK mode: keep status behavior compatible with previous mock ACK path.
-                addr_times[addr] = 0.0
-                results[addr] = {
-                    "enabled": True,
-                    "status": 1,
-                    "pulses": pulses,
-                }
-
-            if prepared_frames:
-                with self._serial_lock:
-                    for idx, (addr, frame) in enumerate(prepared_frames):
-                        t0 = time.time()
-                        self.serial.write(frame)
-                        self.serial.flush()
-                        addr_times[addr] = time.time() - t0
-
-                        # Some motor controllers do not reliably parse back-to-back
-                        # frames without a tiny spacing gap.
-                        if idx < len(prepared_frames) - 1 and INTER_MOVE_FRAME_DELAY_S > 0:
-                            time.sleep(INTER_MOVE_FRAME_DELAY_S)
-        finally:
-            self._send_priority = False
-
-        times_str = "  ".join(f"addr{a}={t:.4f}s" for a, t in addr_times.items())
-        avg = sum(addr_times.values()) / len(addr_times) if addr_times else 0
-        print(f"[SEND] {times_str}  avg={avg:.4f}s  total={sum(addr_times.values()):.4f}s")
-        return results
-
-    def send_joint_position_fast(self, joints: dict, hip_pulses: int = 10, knee_pulses: int = 20):
-        """
-        Same as send_joint_position but batches all 4 frames into a single
-        serial.write() + serial.flush() to minimise syscall overhead on the
-        Jetson's tegra-uart DMA / USB-serial FIFO.  Use when
-        INTER_MOVE_FRAME_DELAY_S == 0 and the motor controllers can handle
-        back-to-back frames without a gap.
-        """
-        results = {}
-        prepared_frames: list[tuple[int, bytes]] = []
-        self._send_priority = True
-
-        try:
-            for addr, target_rad in joints.items():
-                if not isinstance(addr, int):
-                    continue
-
-                current_rad = self._last_positions.get(addr, 0.0)
-                delta_rad = target_rad - current_rad
+                    delta_rad = value - current_rad
                 raw_pulses = int(round((abs(delta_rad) / (2 * math.pi)) * PULSES_PER_REV) * GEAR_RATIO)
                 max_p = hip_pulses if addr in HIP_ADDRS else knee_pulses
                 pulses = min(raw_pulses, max_p)
@@ -386,7 +325,7 @@ class Rs485Driver:
         """Gradually move all joints to ZERO_GRAVITY_POS before power off."""
         print("[SHUTDOWN] Moving to zero gravity position...")
         while True:
-            self.send_joint_position(ZERO_GRAVITY_POS, hip_pulses=10, knee_pulses=20)
+            self.send_joint_position_fast(ZERO_GRAVITY_POS, hip_pulses=10, knee_pulses=20)
             if all(
                 abs(self._last_positions.get(addr, 0.0) - target) < tolerance
                 for addr, target in ZERO_GRAVITY_POS.items()

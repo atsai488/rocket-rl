@@ -16,6 +16,8 @@ def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("policy_file_path", type=Path)
     parser.add_argument("--verbose", action="store_true")
+    parser.add_argument("--policy-type", choices=["delta", "position"], default="delta",
+                        help="Action space: 'delta' (sim-trained, action×full_range) or 'position' (mid+action×half_range)")
     options = parser.parse_args()
 
     class Config:
@@ -26,7 +28,8 @@ def main():
 
     config = Config()
     imu = BNO055()
-    rocket = Rocket(config)
+    rocket = Rocket(config, policy_type=options.policy_type)
+    print(f"[INFO] Policy type: {options.policy_type}")
     atmega = AtmegaI2C()
     context = RocketOnnxContext()
     # config = orbit.orbit_configuration.load_configuration(conf_file)
