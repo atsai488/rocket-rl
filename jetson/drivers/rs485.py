@@ -346,9 +346,9 @@ class Rs485Driver:
 
                 current_rad = self._last_positions.get(addr, 0.0)
                 delta_rad = target_rad - current_rad
-                pulses = int(round((abs(delta_rad) / (2 * math.pi)) * PULSES_PER_REV) * GEAR_RATIO)
+                raw_pulses = int(round((abs(delta_rad) / (2 * math.pi)) * PULSES_PER_REV) * GEAR_RATIO)
                 max_p = hip_pulses if addr in HIP_ADDRS else knee_pulses
-                pulses = min(pulses, max_p)
+                pulses = min(raw_pulses, max_p)
                 if addr == 0x01 or addr == 0x04:
                     direction = 1 if delta_rad <= 0 else 0
                 else:
@@ -362,7 +362,7 @@ class Rs485Driver:
                     + pulse_bytes
                 )
                 prepared_frames.append((addr, self.append_crc(frame)))
-                results[addr] = {"enabled": True, "status": 1, "pulses": pulses}
+                results[addr] = {"enabled": True, "status": 1, "pulses": pulses, "raw_pulses": raw_pulses}
 
             if prepared_frames:
                 if DEBUG_TIMING:
@@ -378,7 +378,7 @@ class Rs485Driver:
         finally:
             self._send_priority = False
 
-        pulses_str = "  ".join(f"addr{addr}={r['pulses']}p" for addr, r in results.items())
+        pulses_str = "  ".join(f"addr{addr}={r['pulses']}/{r['raw_pulses']}" for addr, r in results.items())
         print(f"[PULSES] {pulses_str}")
         return results
 
