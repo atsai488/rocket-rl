@@ -301,7 +301,7 @@ class Rs485Driver:
                     + pulse_bytes
                 )
                 prepared_frames.append((addr, self.append_crc(frame)))
-                results[addr] = {"enabled": True, "status": 1, "pulses": pulses, "raw_pulses": raw_pulses}
+                results[addr] = {"enabled": True, "status": 1, "pulses": pulses, "raw_pulses": raw_pulses, "delta_rad": delta_rad}
 
             if prepared_frames:
                 if DEBUG_TIMING:
@@ -317,7 +317,7 @@ class Rs485Driver:
         finally:
             self._send_priority = False
 
-        pulses_str = "  ".join(f"addr{addr}={r['pulses']}/{r['raw_pulses']}" for addr, r in results.items())
+        pulses_str = "  ".join(f"addr{addr}={r['pulses']}/{r['raw_pulses']} delta={r['delta_rad']:.4f}" for addr, r in results.items())
         print(f"[PULSES] {pulses_str}")
         return results
 
