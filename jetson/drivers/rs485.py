@@ -24,6 +24,8 @@ PULSES_PER_REV = 200
 RADIANS_PER_COUNT = 2 * math.pi / COUNTS_PER_REV
 GEAR_RATIO = 5
 ZERO_GRAVITY_POS = {1: -0.35, 2: -0.35, 3: -0.35, 4: -0.35}
+HIP_ADDRS = {1, 2}   # Revolute3, Revolute4
+KNEE_ADDRS = {3, 4}  # Revolute5, Revolute6
 
 class Rs485Driver:
     def __init__(
@@ -259,7 +261,7 @@ class Rs485Driver:
 
         return resp[3]
 
-    def send_joint_position(self, joints: dict, max_pulses: int = 10):
+    def send_joint_position(self, joints: dict, hip_pulses: int = 10, knee_pulses: int = 20):
         """
         Expected input examples:
           {1: 0.1, 2: -0.2, 3: 1.57, 4: 0.0}
@@ -281,7 +283,8 @@ class Rs485Driver:
                 current_rad = self._last_positions.get(addr, 0.0)
                 delta_rad = target_rad - current_rad
                 pulses = int(round((abs(delta_rad) / (2 * math.pi)) * PULSES_PER_REV) * GEAR_RATIO)
-                pulses = min(pulses, max_pulses)
+                max_p = hip_pulses if addr in HIP_ADDRS else knee_pulses
+                pulses = min(pulses, max_p)
                 if (addr == 0x01 or addr == 0x04):
                     direction = 1 if delta_rad <= 0 else 0
                 else:
@@ -324,7 +327,7 @@ class Rs485Driver:
         print(f"[SEND] {times_str}  avg={avg:.4f}s  total={sum(addr_times.values()):.4f}s")
         return results
 
-    def send_joint_position_fast(self, joints: dict, max_pulses: int = 10):
+    def send_joint_position_fast(self, joints: dict, hip_pulses: int = 10, knee_pulses: int = 20):
         """
         Same as send_joint_position but batches all 4 frames into a single
         serial.write() + serial.flush() to minimise syscall overhead on the
@@ -344,7 +347,8 @@ class Rs485Driver:
                 current_rad = self._last_positions.get(addr, 0.0)
                 delta_rad = target_rad - current_rad
                 pulses = int(round((abs(delta_rad) / (2 * math.pi)) * PULSES_PER_REV) * GEAR_RATIO)
-                pulses = min(pulses, max_pulses)
+                max_p = hip_pulses if addr in HIP_ADDRS else knee_pulses
+                pulses = min(pulses, max_p)
                 if addr == 0x01 or addr == 0x04:
                     direction = 1 if delta_rad <= 0 else 0
                 else:
@@ -382,7 +386,7 @@ class Rs485Driver:
         """Gradually move all joints to ZERO_GRAVITY_POS before power off."""
         print("[SHUTDOWN] Moving to zero gravity position...")
         while True:
-            self.send_joint_position(ZERO_GRAVITY_POS, max_pulses=10)
+            self.send_joint_position(ZERO_GRAVITY_POS, hip_pulses=10, knee_pulses=20)
             if all(
                 abs(self._last_positions.get(addr, 0.0) - target) < tolerance
                 for addr, target in ZERO_GRAVITY_POS.items()
