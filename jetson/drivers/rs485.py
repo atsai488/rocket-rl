@@ -374,6 +374,8 @@ class Rs485Driver:
         finally:
             self._send_priority = False
 
+        pulses_str = "  ".join(f"addr{addr}={r['pulses']}p" for addr, r in results.items())
+        print(f"[PULSES] {pulses_str}")
         return results
 
     def shutdown(self, tolerance: float = 0.01, step_delay: float = 0.05):
