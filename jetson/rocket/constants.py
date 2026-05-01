@@ -2,6 +2,8 @@
 # Order matches joint index: [Revolute1, Revolute2, Revolute3, Revolute4, Revolute5, Revolute6]
 JOINT_LOWER = [-0.2618, -0.2618, -0.3490, -0.3490, -0.3490, -0.3490]
 JOINT_UPPER = [ 0.0872,  0.0872,  0.1745,  0.1745,  0.2618,  0.2618]
+# JOINT_LOWER = [-0.2618, -0.2618, -0.2618, -0.2618, -0.3490, -0.3490]
+# JOINT_UPPER = [ 0.0872,  0.0872,  0.1745,  0.1745,  0.0873,  0.0873]
 
 # Derived — do not edit directly
 JOINT_MID        = [(l + u) / 2 for l, u in zip(JOINT_LOWER, JOINT_UPPER)]

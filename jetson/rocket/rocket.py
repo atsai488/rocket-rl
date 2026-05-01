@@ -8,7 +8,7 @@ from drivers.rs485 import Rs485Driver
 from drivers.servo import ServoController
 from rocket.constants import JOINT_MID, JOINT_HALF_RANGE, JOINT_FULL_RANGE
 
-ACTION_DELAY_S = 0.075   # 0.08 -> 10 hz, 0.02 --> 25hz
+ACTION_DELAY_S = 0.078   # 0.08 -> 10 hz, 0.02 --> 25hz
 
 class Rocket:
     def __init__(self, config, policy_type: str = "delta") -> None:
@@ -147,7 +147,7 @@ class Rocket:
                 print(f"[SEND START]   t={send_start:.6f}")
                 self.stepper_driver.send_joint_position_fast(
                     {addr: raw_angles[addr + 1] for addr in range(1, 5)},
-                    hip_pulses=20, knee_pulses=40,
+                    hip_pulses=40, knee_pulses=100,
                     delta=(self.policy_type == "delta"))
                 send_end = time.time()
                 print(f"[SEND END]     t={send_end:.6f}  dt={send_end - send_start:.6f}s")
